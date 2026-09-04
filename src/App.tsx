@@ -173,6 +173,9 @@ export function App() {
             </span>
           </div>
         </button>
+
+        {/* Header Action Slot for Game Controls */}
+        <div id="header-actions" className="flex items-center gap-2" />
       </header>
 
       {/* Main Content Router */}
