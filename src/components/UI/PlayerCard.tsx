@@ -34,8 +34,8 @@ export const PlayerCard: React.FC<PlayerCardProps> = ({
     <div
       className={`relative p-3 rounded-2xl transition-all duration-300 border ${
         isActive
-          ? `bg-slate-900 shadow-xl ring-2 ${colorInfo.border} scale-[1.02] z-10`
-          : 'bg-slate-900/90 border-slate-800 hover:border-slate-700 opacity-85'
+          ? `bg-[#24130c] shadow-xl ring-2 ${colorInfo.border} scale-[1.02] z-10 border-amber-500/40`
+          : 'bg-[#180c07]/90 border-amber-900/30 hover:border-amber-700/40 opacity-90'
       }`}
       style={{
         boxShadow: isActive ? `0 0 20px -2px ${colorInfo.primary}33` : undefined,
