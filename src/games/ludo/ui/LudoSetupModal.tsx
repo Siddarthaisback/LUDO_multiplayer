@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { PlayerConfig, PlayerColor, BotDifficulty } from '../../../types/game';
 import { LudoGameOptions } from '../../../types/ludo';
 import { Users, Bot, User, Play, Sparkles, X, Shield, Zap, Settings2 } from 'lucide-react';
+import { HUMAN_NAME_POOL } from '../../../utils/constants';
 
 interface LudoSetupModalProps {
   isOpen: boolean;
@@ -10,10 +11,10 @@ interface LudoSetupModalProps {
 }
 
 const COLOR_DEFAULTS: { color: PlayerColor; name: string; avatar: string; bg: string; border: string }[] = [
-  { color: 'red', name: 'Player 1', avatar: '🦁', bg: 'bg-red-500', border: 'border-red-400' },
-  { color: 'green', name: 'Player 2', avatar: '🐼', bg: 'bg-emerald-500', border: 'border-emerald-400' },
-  { color: 'yellow', name: 'Player 3', avatar: '🦊', bg: 'bg-amber-500', border: 'border-amber-400' },
-  { color: 'blue', name: 'Player 4', avatar: '🐯', bg: 'bg-blue-500', border: 'border-blue-400' },
+  { color: 'red', name: HUMAN_NAME_POOL[0], avatar: '🦁', bg: 'bg-red-500', border: 'border-red-400' },
+  { color: 'green', name: HUMAN_NAME_POOL[1], avatar: '🐼', bg: 'bg-emerald-500', border: 'border-emerald-400' },
+  { color: 'yellow', name: HUMAN_NAME_POOL[2], avatar: '🦊', bg: 'bg-amber-500', border: 'border-amber-400' },
+  { color: 'blue', name: HUMAN_NAME_POOL[3], avatar: '🐯', bg: 'bg-blue-500', border: 'border-blue-400' },
 ];
 
 export const LudoSetupModal: React.FC<LudoSetupModalProps> = ({
@@ -23,7 +24,12 @@ export const LudoSetupModal: React.FC<LudoSetupModalProps> = ({
 }) => {
   const [playerCount, setPlayerCount] = useState<2 | 3 | 4>(4);
   const [playerTypes, setPlayerTypes] = useState<('human' | 'bot')[]>(['human', 'bot', 'bot', 'bot']);
-  const [playerNames, setPlayerNames] = useState<string[]>(['Player 1 (You)', 'Ramesh (Bot)', 'Sita (Bot)', 'Bikram (Bot)']);
+  const [playerNames, setPlayerNames] = useState<string[]>([
+    `${HUMAN_NAME_POOL[0]} (You)`,
+    HUMAN_NAME_POOL[1],
+    HUMAN_NAME_POOL[2],
+    HUMAN_NAME_POOL[3],
+  ]);
   const [playerDifficulties, setPlayerDifficulties] = useState<BotDifficulty[]>(['medium', 'medium', 'medium', 'medium']);
 
   type TwoPlayerLudoPair = 'red-blue' | 'blue-red' | 'green-yellow' | 'yellow-green';

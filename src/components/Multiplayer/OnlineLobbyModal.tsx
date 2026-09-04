@@ -11,7 +11,7 @@ import {
 } from '../../multiplayer/protocol';
 import { peerTransport, TransportStatus } from '../../multiplayer/peerService';
 import { lobbyController } from '../../multiplayer/lobbyController';
-import { DEFAULT_AVATARS, COLOR_MAP } from '../../utils/constants';
+import { DEFAULT_AVATARS, COLOR_MAP, HUMAN_NAME_POOL } from '../../utils/constants';
 import {
   Users,
   Copy,
@@ -39,7 +39,7 @@ export const OnlineLobbyModal: React.FC<OnlineLobbyModalProps> = ({
 }) => {
   const [view, setView] = useState<'welcome' | 'lobby'>(initialRoomCode ? 'welcome' : 'welcome');
   const [playerName, setPlayerName] = useState<string>(() => {
-    return 'Player ' + Math.floor(100 + Math.random() * 900);
+    return HUMAN_NAME_POOL[Math.floor(Math.random() * HUMAN_NAME_POOL.length)];
   });
   const [selectedAvatar, setSelectedAvatar] = useState<string>(DEFAULT_AVATARS[0]);
   const [roomInput, setRoomInput] = useState<string>(normalizeRoomCode(initialRoomCode));

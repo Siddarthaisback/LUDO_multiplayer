@@ -772,70 +772,32 @@ export const LudoGame: React.FC<LudoGameProps> = ({
         </div>
       )}
 
-      {/* Dynamic Turn Instruction Banner */}
-      <div
-        className="w-full py-2.5 px-3.5 sm:px-5 rounded-2xl flex items-center justify-between shadow-lg border bg-slate-900 transition-all"
-        style={{
-          borderColor: activeColorInfo.primary,
-        }}
-      >
-        <div className="flex items-center gap-2.5 sm:gap-3.5">
-          <span className="text-2xl sm:text-3xl">{activePlayer?.config.avatar}</span>
-          <div>
-            <div className="text-xs sm:text-sm font-black uppercase tracking-wider text-white flex items-center gap-1.5 flex-wrap">
-              <span>{activePlayer?.config.name}'s Turn</span>
-              <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
-            </div>
-            <p className="text-[11px] sm:text-xs font-semibold text-slate-300">
-              {isOnline && !isMyOnlineTurn
-                ? `⏳ Waiting for ${activePlayer?.config.name} to roll or move...`
-                : isOnline && isMyOnlineTurn && !hasRolled
-                ? '🎲 It is your turn! Tap the dice to roll!'
-                : isOnline && isMyOnlineTurn && hasRolled && validMoves.length > 0
-                ? '👉 Tap your highlighted pawn to make your move!'
-                : isAnimatingMove
-                ? '⚡ Moving pawn...'
-                : !hasRolled
-                ? '🎲 Tap the dice to roll!'
-                : validMoves.length > 0
-                ? '👉 Tap or hover a highlighted bouncing pawn to move!'
-                : '❌ No legal moves with this roll.'}
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {consecutiveSixes > 0 && (
-            <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-amber-500/30 text-amber-300 border border-amber-400">
-              🔥 6s: {consecutiveSixes}/3
-            </span>
-          )}
-        </div>
-      </div>
-
       {/* Main Game Layout Grid */}
       <div className={`grid ${isNative ? 'grid-cols-1 max-w-lg mx-auto' : 'grid-cols-1 lg:grid-cols-12'} gap-4 lg:gap-6 items-start w-full`}>
         {/* Center: The Board */}
         <div className={`${isNative ? 'w-full' : 'lg:col-span-6 order-1 lg:order-2'} flex flex-col items-center justify-center`}>
-          <LudoBoard
-            players={players}
-            activeColor={activePlayer?.config.color || 'red'}
-            validMoves={validMoves}
-            onTokenClick={handleSelectToken}
-            onTokenHover={setHoveredTokenId}
-            isRolling={isRolling}
-            boardStyle={boardStyle}
-            isShaking={isShaking}
-            effects={effects}
-            pathPreview={currentPreview}
-          />
+          <div className="p-2 sm:p-3 rounded-3xl bg-slate-900/60 border border-slate-800/80 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.8)] backdrop-blur-sm">
+            <LudoBoard
+              players={players}
+              activeColor={activePlayer?.config.color || 'red'}
+              validMoves={validMoves}
+              onTokenClick={handleSelectToken}
+              onTokenHover={setHoveredTokenId}
+              isRolling={isRolling}
+              boardStyle={boardStyle}
+              isShaking={isShaking}
+              effects={effects}
+              pathPreview={currentPreview}
+            />
+          </div>
         </div>
 
         {/* Left Column: Player Cards (Hidden on native APK per user request) */}
         {!isNative && (
-          <div className="lg:col-span-3 flex flex-col gap-3 order-3 lg:order-1 bg-slate-900 lg:border lg:border-slate-800 rounded-3xl p-2.5 sm:p-3.5 lg:p-4 shadow-xl">
-            <div className="text-xs uppercase font-extrabold tracking-wider text-slate-400 px-1">
-              <span>Player Standings ({players.length}P)</span>
+          <div className="lg:col-span-3 flex flex-col gap-3 order-3 lg:order-1 bg-slate-900/90 lg:border lg:border-slate-800/80 rounded-3xl p-2.5 sm:p-3.5 lg:p-4 shadow-xl backdrop-blur-sm">
+            <div className="text-xs uppercase font-black tracking-wider text-slate-400 px-1 flex items-center justify-between">
+              <span>Players</span>
+              <span className="text-[11px] font-bold text-slate-500">{players.length} Players</span>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-1 gap-2.5">
               {players.map((p, idx) => (
@@ -856,16 +818,18 @@ export const LudoGame: React.FC<LudoGameProps> = ({
 
         {/* Right Column: Dice Action Tray */}
         <div className={`${isNative ? 'w-full max-w-xs mx-auto' : 'lg:col-span-3 order-2 lg:order-3'} flex flex-col gap-3 sm:gap-4`}>
-          <div className="bg-gradient-to-b from-slate-900 via-slate-900 to-slate-950 border border-slate-800 rounded-3xl p-3.5 sm:p-4 shadow-2xl flex flex-col items-center justify-center gap-2.5 sm:gap-3">
-            <span className="text-[11px] font-extrabold uppercase tracking-widest text-slate-400">
-              Dice Roller
-            </span>
+          <div
+            className="bg-gradient-to-b from-slate-900/95 via-slate-900/90 to-slate-950/95 rounded-3xl p-4 sm:p-5 shadow-[0_20px_50px_rgba(0,0,0,0.6)] backdrop-blur-md flex flex-col items-center justify-center gap-3 sm:gap-4 border"
+            style={{
+              borderColor: `${activeColorInfo.primary}40`,
+            }}
+          >
             <div
               onPointerDown={handleRollPointerDown}
               onPointerUp={handleRollPointerUp}
               onPointerCancel={handleRollPointerCancel}
               onContextMenu={(e) => e.preventDefault()}
-              className="touch-none select-none"
+              className="touch-none select-none cursor-pointer py-1"
             >
               <Dice3D
                 value={diceValue}
@@ -873,14 +837,21 @@ export const LudoGame: React.FC<LudoGameProps> = ({
                 canRoll={!isRolling && !hasRolled && !isAnimatingMove && !isAutomatedTurn && (!isOnline || isMyOnlineTurn)}
                 activeColor={activePlayer?.config.color || 'red'}
                 onRoll={() => {}}
-                size={60}
+                size={64}
                 showButton={false}
               />
             </div>
+
+            {consecutiveSixes > 0 && (
+              <span className="text-xs font-black px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-400/50 shadow-md animate-bounce">
+                🔥 6s STREAK: {consecutiveSixes}/3
+              </span>
+            )}
+
             {isOnline && !isMyOnlineTurn ? (
               <div className="w-full py-2.5 px-3 rounded-2xl bg-slate-800/90 border border-slate-700 text-center text-xs font-bold text-slate-300 flex items-center justify-center gap-2 shadow-inner">
                 <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
-                <span>⏳ WAITING FOR {activePlayer?.config.name.toUpperCase()}...</span>
+                <span>WAITING FOR {activePlayer?.config.name.toUpperCase()}...</span>
               </div>
             ) : !hasRolled && !isRolling && !isAnimatingMove && !isAutomatedTurn ? (
               <button
@@ -891,17 +862,18 @@ export const LudoGame: React.FC<LudoGameProps> = ({
                 onKeyUp={handleRollKeyUp}
                 onClick={handleRollClick}
                 onContextMenu={(e) => e.preventDefault()}
-                className="w-full py-2.5 px-4 rounded-2xl text-white font-black text-xs sm:text-sm uppercase tracking-wider shadow-xl hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-2 border border-white/20 animate-pulse cursor-pointer select-none touch-none"
+                className="w-full py-3.5 px-6 rounded-2xl text-white font-black text-sm sm:text-base uppercase tracking-wider shadow-2xl transition-all duration-75 flex items-center justify-center gap-2 border-b-[5px] border-black/50 active:border-b-[1px] active:translate-y-1 hover:brightness-110 cursor-pointer select-none touch-none"
                 style={{
-                  background: `linear-gradient(135deg, ${activeColorInfo.primary}, ${activeColorInfo.dark})`,
-                  boxShadow: `0 6px 20px ${activeColorInfo.primary}60`,
+                  background: `linear-gradient(180deg, ${activeColorInfo.light || activeColorInfo.primary} 0%, ${activeColorInfo.primary} 45%, ${activeColorInfo.dark} 100%)`,
+                  boxShadow: `0 10px 25px ${activeColorInfo.primary}50, inset 0 1px 0 rgba(255,255,255,0.4)`,
                 }}
               >
-                <span>🎲 TAP TO ROLL</span>
+                <span className="drop-shadow-[0_2px_4px_rgba(0,0,0,0.6)]">🎲 ROLL DICE</span>
               </button>
             ) : hasRolled ? (
-              <div className="w-full py-2 px-3 rounded-xl bg-slate-800/80 border border-slate-700/80 text-center text-xs font-bold text-slate-300 shadow-inner">
-                Rolled: <span className="text-amber-400 font-black text-base ml-1">{diceValue}</span>
+              <div className="w-full py-2.5 px-4 rounded-2xl bg-amber-950/40 border border-amber-500/30 text-center text-sm font-bold text-amber-100 shadow-inner flex items-center justify-center gap-2">
+                <span>Rolled:</span>
+                <span className="text-amber-400 font-black text-lg px-2.5 py-0.5 rounded-lg bg-amber-400/20 border border-amber-400/40 shadow-sm">{diceValue}</span>
               </div>
             ) : null}
           </div>
