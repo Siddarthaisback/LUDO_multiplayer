@@ -738,7 +738,18 @@ export const LudoGame: React.FC<LudoGameProps> = ({
   const bluePlayer = players.find((p) => p.config.color === 'blue');
 
   return (
-    <div className="flex-1 flex flex-col justify-center items-center max-w-[1680px] w-full mx-auto px-2 sm:px-4 lg:px-6 py-1 sm:py-2 gap-2 sm:gap-4 min-h-0">
+    <div className="flex-1 flex flex-col justify-center items-center max-w-[1680px] w-full mx-auto px-2 sm:px-4 lg:px-6 py-1 sm:py-2 gap-2 sm:gap-4 min-h-0 relative isolate">
+      {/* Decorative Fixed Rustic Tavern Tabletop Theme Background */}
+      <div className="fixed inset-0 pointer-events-none -z-10 overflow-hidden select-none" aria-hidden="true">
+        <img
+          src="/assets/ludo_bg_tavern.jpg"
+          alt=""
+          aria-hidden="true"
+          className="w-full h-full object-cover object-center filter brightness-[0.70] contrast-[1.08]"
+        />
+        <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/20 to-black/60" />
+      </div>
+
       {/* Top Settings Bar */}
       <SettingsBar
         onRestart={handleRestart}
@@ -752,7 +763,7 @@ export const LudoGame: React.FC<LudoGameProps> = ({
 
       {/* Online Multiplayer Match Banner */}
       {isOnline && (
-        <div className="w-full py-2 px-4 rounded-xl bg-[#2a170c]/90 border border-[#4d2a15] flex items-center justify-between shadow-sm select-none">
+        <div className="w-full py-2 px-4 rounded-xl bg-[#2a170c]/90 border border-[#4d2a15] flex items-center justify-between shadow-sm select-none relative z-10">
           <div className="flex items-center gap-2.5 text-xs font-bold text-[#f6ead7]">
             <Wifi className="w-4 h-4 text-amber-400" />
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
@@ -774,7 +785,7 @@ export const LudoGame: React.FC<LudoGameProps> = ({
       )}
 
       {/* Main Game Stage with Side Corner Docks */}
-      <div className="ludo-stage-grid">
+      <div className="ludo-stage-grid relative z-10">
         {/* Red Home Dock (Top-Left on Desktop, Top-Left on Mobile) */}
         <div className="ludo-area-red self-start">
           <PlayerCornerDock
