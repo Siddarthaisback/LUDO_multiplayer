@@ -149,17 +149,24 @@ export function App() {
     }
   };
 
+  const isGameActive = screen !== 'menu' || !!setupGameId;
+
   return (
-    <main className="min-h-screen bg-[#221309] bg-[radial-gradient(ellipse_at_50%_38%,_#7a4b26_0%,_#543217_40%,_#331d0d_80%,_#1f1006_100%)] text-[#f6ead7] flex flex-col justify-between selection:bg-amber-600 selection:text-white relative">
+    <main
+      className={`${
+        isGameActive ? 'h-dvh max-h-dvh overflow-hidden flex flex-col' : 'min-h-screen flex flex-col justify-between'
+      } bg-[#221309] bg-[radial-gradient(ellipse_at_50%_38%,_#7a4b26_0%,_#543217_40%,_#331d0d_80%,_#1f1006_100%)] text-[#f6ead7] selection:bg-amber-600 selection:text-white relative`}
+    >
       {/* Subtle Physical Wood Tabletop Grain & Warm Overhead Lighting */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden z-0 opacity-[0.04] bg-[radial-gradient(#f6ead7_1px,transparent_1px),radial-gradient(#e2a865_1px,transparent_1px)] [background-size:20px_20px,32px_32px] [background-position:0_0,10px_10px]" />
       <div className="fixed inset-0 pointer-events-none z-0 bg-[radial-gradient(circle_at_50%_38%,rgba(255,228,185,0.08)_0%,transparent_65%)]" />
 
-      {/* Header Bar */}
-      <header className="relative z-10 border-b border-[#4d2c16] bg-[#23140a]/95 px-4 sm:px-6 py-3 flex items-center justify-between shadow-md">
+      {/* Header Bar - Sticky and Pinned at Top */}
+      <header className="sticky top-0 shrink-0 z-40 border-b border-[#4d2c16] bg-[#1e1007]/95 backdrop-blur-md px-3 sm:px-6 py-2 sm:py-2.5 flex items-center justify-between shadow-lg">
         <button
+          type="button"
           onClick={handleHome}
-          className="flex items-center gap-2.5 text-left group transition-all cursor-pointer"
+          className="flex items-center gap-2.5 text-left group transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 rounded-xl"
         >
           <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-400 via-yellow-500 to-amber-700 flex items-center justify-center text-base shadow-md group-hover:scale-105 transition-transform text-slate-950 font-black border border-amber-300/40">
             {isNative ? '🎲' : '♠️'}
@@ -175,11 +182,11 @@ export function App() {
         </button>
 
         {/* Header Action Slot for Game Controls */}
-        <div id="header-actions" className="flex items-center gap-2" />
+        <div id="header-actions" className="flex items-center gap-1.5 sm:gap-2 shrink-0" />
       </header>
 
       {/* Main Content Router */}
-      <div className={`relative z-10 flex-1 flex flex-col justify-center ${screen === 'menu' && !setupGameId ? 'py-4' : 'p-1 sm:p-2 h-[calc(100vh-64px)] overflow-hidden'}`}>
+      <div className={`relative z-10 flex-1 min-h-0 flex flex-col justify-center ${screen === 'menu' && !setupGameId ? 'py-4 overflow-y-auto' : 'p-1 sm:p-2 overflow-hidden'}`}>
         {/* If Player Setup is open for a game, show Setup screen first */}
         {setupGameId ? (
           <GameSetup

@@ -62,30 +62,66 @@ export const SettingsBar: React.FC<SettingsBarProps> = ({
   };
 
   const headerControls = (
-    <div className="flex items-center gap-2">
+    <div className="flex items-center gap-1.5 sm:gap-2">
+      {/* 1. Quick Sound Audio Toggle */}
+      <button
+        type="button"
+        onClick={handleToggleSound}
+        title={soundOn ? 'Game Audio is ON (Click to Mute)' : 'Game Audio is MUTED (Click to Unmute)'}
+        aria-label={soundOn ? 'Mute Game Audio' : 'Unmute Game Audio'}
+        aria-pressed={soundOn}
+        className={`px-2 sm:px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border cursor-pointer active:scale-95 shadow-sm min-h-[34px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 ${
+          soundOn
+            ? 'bg-[#3b2010] hover:bg-[#4d2915] text-[#f6ead7] border-amber-400/70 hover:border-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.15)]'
+            : 'bg-rose-950/80 hover:bg-rose-900 text-rose-200 border-rose-500/80 shadow-[0_0_10px_rgba(244,63,94,0.2)]'
+        }`}
+      >
+        {soundOn ? <Volume2 className="w-4 h-4 text-emerald-400 shrink-0" /> : <VolumeX className="w-4 h-4 text-rose-400 shrink-0" />}
+        <span className="hidden md:inline text-[11px] font-semibold">{soundOn ? 'SFX' : 'Muted'}</span>
+      </button>
+
+      {/* 2. Quick Rules Trigger */}
+      <button
+        type="button"
+        onClick={onOpenRules}
+        title="Game Rules & Guide"
+        aria-label="Open Rules Guide"
+        className="px-2 sm:px-2.5 py-1.5 rounded-xl bg-[#3b2010] hover:bg-[#4d2915] text-[#f6ead7] transition-all flex items-center gap-1.5 text-xs font-bold border border-amber-400/70 hover:border-amber-300 cursor-pointer active:scale-95 shadow-sm shadow-[0_0_10px_rgba(245,158,11,0.15)] min-h-[34px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
+      >
+        <HelpCircle className="w-4 h-4 text-amber-400 shrink-0" />
+        <span className="hidden md:inline text-[11px] font-semibold">Rules</span>
+      </button>
+
+      {/* 3. Auto-Play AI Toggle (if supported) */}
       {onToggleAutoPlay && (
         <button
+          type="button"
           onClick={onToggleAutoPlay}
           title={isAutoPlay ? 'Auto-Play is Active (Click to Pause)' : 'Click to Enable Auto-Play'}
-          className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition-colors duration-150 flex items-center gap-1.5 border cursor-pointer ${
+          aria-label={isAutoPlay ? 'Disable Auto-Play' : 'Enable Auto-Play'}
+          aria-pressed={!!isAutoPlay}
+          className={`px-2 sm:px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 border cursor-pointer active:scale-95 shadow-sm min-h-[34px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 ${
             isAutoPlay
-              ? 'bg-amber-600/30 text-amber-200 border-amber-500 shadow-md'
-              : 'bg-[#241309] hover:bg-[#341b0e] text-[#cdb99d] border-[#5e381e]'
+              ? 'bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 text-slate-950 border-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.5)] font-black'
+              : 'bg-[#3b2010] hover:bg-[#4d2915] text-[#f6ead7] border-amber-400/70 hover:border-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.15)]'
           }`}
         >
-          <Sparkles className="w-3.5 h-3.5 text-[#d6a85f]" />
-          <span className="hidden sm:inline">Auto-Play:</span>
+          <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+          <span className="hidden sm:inline">Auto:</span>
           <span>{isAutoPlay ? 'ON' : 'OFF'}</span>
         </button>
       )}
 
+      {/* 4. High-Contrast Luminous Amber/Gold Settings Button */}
       <button
+        type="button"
         onClick={() => setShowSettingsModal(true)}
         title="Game Controls & Match Settings"
-        className="px-3 py-1.5 rounded-lg bg-[#241309] hover:bg-[#341b0e] text-[#f6ead7] transition-colors duration-150 flex items-center gap-1.5 text-xs font-bold border border-[#5e381e] cursor-pointer shadow-sm"
+        aria-label="Open Match Settings"
+        className="px-3 sm:px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-600 hover:from-amber-400 hover:to-yellow-500 text-slate-950 transition-all flex items-center gap-1.5 sm:gap-2 text-xs font-black border border-amber-300 shadow-[0_0_15px_rgba(245,158,11,0.4)] hover:shadow-[0_0_20px_rgba(245,158,11,0.65)] cursor-pointer active:scale-95 min-h-[34px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"
       >
-        <Settings className="w-4 h-4 text-[#d6a85f]" />
-        <span>Settings</span>
+        <Settings className="w-4 h-4 text-slate-950 shrink-0" />
+        <span className="tracking-wide font-black">Settings</span>
       </button>
     </div>
   );
