@@ -1,13 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { flushSync } from 'react-dom';
-import { Capacitor } from '@capacitor/core';
 import { PlayerConfig, PlayerColor } from '../../types/game';
 import { LudoPlayerState, LudoGameOptions, MoveOption } from '../../types/ludo';
 import { LudoBoard } from './LudoBoard';
 import { LudoEngine } from './LudoEngine';
-import { Dice3D } from '../../components/UI/Dice3D';
-import { PlayerCard } from '../../components/UI/PlayerCard';
+import { PlayerCornerDock } from './PlayerCornerDock';
 import { VictoryModal } from '../../components/UI/VictoryModal';
+import './ludoAnimations.css';
 import { SettingsBar } from '../../components/UI/SettingsBar';
 import { RulesModal } from '../../components/UI/RulesModal';
 import { soundEffects } from '../../engine/soundEffects';
@@ -22,7 +21,6 @@ import { Wifi } from 'lucide-react';
 import { MultiplayerSession } from '../../multiplayer/protocol';
 import { onlineLudoController } from '../../multiplayer/onlineLudoController';
 
-const isNative = typeof window !== 'undefined' && Capacitor.isNativePlatform();
 const DICE_HOLD_THRESHOLD_MS = 500;
 const BOT_ROLL_DELAY_MS = 800;
 const BOT_MOVE_DELAY_MS = 750;
@@ -734,7 +732,10 @@ export const LudoGame: React.FC<LudoGameProps> = ({
     return derivePathPreview(move, activePlayer.config.color, players, boardStyle);
   })();
 
-  const activeColorInfo = activePlayer ? COLOR_MAP[activePlayer.config.color] : COLOR_MAP.red;
+  const redPlayer = players.find((p) => p.config.color === 'red');
+  const greenPlayer = players.find((p) => p.config.color === 'green');
+  const yellowPlayer = players.find((p) => p.config.color === 'yellow');
+  const bluePlayer = players.find((p) => p.config.color === 'blue');
 
   return (
     <div className="flex-1 flex flex-col max-w-[1680px] w-full mx-auto px-2 sm:px-4 lg:px-6 py-2 gap-3 sm:gap-4">
@@ -772,10 +773,58 @@ export const LudoGame: React.FC<LudoGameProps> = ({
         </div>
       )}
 
-      {/* Main Game Layout Grid: Exact b0dca67 Layout */}
-      <div className={`grid ${isNative ? 'grid-cols-1 max-w-lg mx-auto' : 'grid-cols-1 lg:grid-cols-12'} gap-4 lg:gap-6 items-start w-full`}>
-        {/* Center: The Board (100% untouched b0dca67 direct mount) */}
-        <div className={`${isNative ? 'w-full' : 'lg:col-span-6 order-1 lg:order-2'} flex flex-col items-center justify-center`}>
+      {/* Main Game Stage with Side Corner Docks */}
+      <div className="ludo-stage-grid">
+        {/* Red Home Dock (Top-Left on Desktop, Top-Left on Mobile) */}
+        <div className="ludo-area-red self-start">
+          <PlayerCornerDock
+            color="red"
+            corner="top-left"
+            playerState={redPlayer}
+            isActive={activePlayer?.config.color === 'red'}
+            diceValue={diceValue}
+            isRolling={isRolling}
+            canRoll={!isRolling && !hasRolled && !isAnimatingMove && !isAutomatedTurn && (!isOnline || isMyOnlineTurn)}
+            hasRolled={hasRolled}
+            isAnimatingMove={isAnimatingMove}
+            isAutomatedTurn={isAutomatedTurn}
+            isOnline={isOnline}
+            isMyOnlineTurn={isMyOnlineTurn}
+            onRollPointerDown={handleRollPointerDown}
+            onRollPointerUp={handleRollPointerUp}
+            onRollPointerCancel={handleRollPointerCancel}
+            onRollKeyDown={handleRollKeyDown}
+            onRollKeyUp={handleRollKeyUp}
+            onRollClick={handleRollClick}
+          />
+        </div>
+
+        {/* Green Home Dock (Top-Right on Desktop, Top-Right on Mobile) */}
+        <div className="ludo-area-green self-start">
+          <PlayerCornerDock
+            color="green"
+            corner="top-right"
+            playerState={greenPlayer}
+            isActive={activePlayer?.config.color === 'green'}
+            diceValue={diceValue}
+            isRolling={isRolling}
+            canRoll={!isRolling && !hasRolled && !isAnimatingMove && !isAutomatedTurn && (!isOnline || isMyOnlineTurn)}
+            hasRolled={hasRolled}
+            isAnimatingMove={isAnimatingMove}
+            isAutomatedTurn={isAutomatedTurn}
+            isOnline={isOnline}
+            isMyOnlineTurn={isMyOnlineTurn}
+            onRollPointerDown={handleRollPointerDown}
+            onRollPointerUp={handleRollPointerUp}
+            onRollPointerCancel={handleRollPointerCancel}
+            onRollKeyDown={handleRollKeyDown}
+            onRollKeyUp={handleRollKeyUp}
+            onRollClick={handleRollClick}
+          />
+        </div>
+
+        {/* The Board (Center of Stage) */}
+        <div className="ludo-area-board self-center justify-self-center">
           <LudoBoard
             players={players}
             activeColor={activePlayer?.config.color || 'red'}
@@ -790,81 +839,52 @@ export const LudoGame: React.FC<LudoGameProps> = ({
           />
         </div>
 
-        {/* Left Column: Player Standings */}
-        {!isNative && (
-          <div className="lg:col-span-3 flex flex-col gap-3 order-3 lg:order-1 bg-[#2a170c]/90 border border-[#4d2a15] rounded-2xl p-3 sm:p-4 shadow-xl">
-            <div className="text-xs uppercase font-semibold tracking-wide text-[#f6ead7] px-1 flex items-center justify-between">
-              <span>Player Standings</span>
-              <span className="text-[10px] text-[#cdb99d] font-medium">{players.length}P</span>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-1 gap-2.5">
-              {players.map((p, idx) => (
-                <PlayerCard
-                  key={p.config.id}
-                  player={p.config}
-                  isActive={activePlayerIndex === idx}
-                  scoreLabel="Home"
-                  scoreValue={`${p.tokensHome}/4`}
-                  rank={p.rank}
-                  consecutiveSixes={activePlayerIndex === idx ? consecutiveSixes : 0}
-                  tokens={p.tokens}
-                />
-              ))}
-            </div>
-          </div>
-        )}
+        {/* Yellow Home Dock (Bottom-Left on Desktop, Bottom-Left on Mobile) */}
+        <div className="ludo-area-yellow self-end">
+          <PlayerCornerDock
+            color="yellow"
+            corner="bottom-left"
+            playerState={yellowPlayer}
+            isActive={activePlayer?.config.color === 'yellow'}
+            diceValue={diceValue}
+            isRolling={isRolling}
+            canRoll={!isRolling && !hasRolled && !isAnimatingMove && !isAutomatedTurn && (!isOnline || isMyOnlineTurn)}
+            hasRolled={hasRolled}
+            isAnimatingMove={isAnimatingMove}
+            isAutomatedTurn={isAutomatedTurn}
+            isOnline={isOnline}
+            isMyOnlineTurn={isMyOnlineTurn}
+            onRollPointerDown={handleRollPointerDown}
+            onRollPointerUp={handleRollPointerUp}
+            onRollPointerCancel={handleRollPointerCancel}
+            onRollKeyDown={handleRollKeyDown}
+            onRollKeyUp={handleRollKeyUp}
+            onRollClick={handleRollClick}
+          />
+        </div>
 
-        {/* Right Column: Dice Action Tray */}
-        <div className={`${isNative ? 'w-full max-w-xs mx-auto' : 'lg:col-span-3 order-2 lg:order-3'} flex flex-col gap-3 sm:gap-4`}>
-          <div className="bg-[#2a170c]/90 border border-[#4d2a15] rounded-2xl p-3.5 sm:p-4 shadow-xl flex flex-col items-center justify-center gap-2.5 sm:gap-3">
-            <span className="text-xs font-semibold uppercase tracking-wide text-[#f6ead7]">
-              Dice Roller
-            </span>
-            <div
-              onPointerDown={handleRollPointerDown}
-              onPointerUp={handleRollPointerUp}
-              onPointerCancel={handleRollPointerCancel}
-              onContextMenu={(e) => e.preventDefault()}
-              className="touch-none select-none cursor-pointer p-1"
-            >
-              <Dice3D
-                value={diceValue}
-                isRolling={isRolling}
-                canRoll={!isRolling && !hasRolled && !isAnimatingMove && !isAutomatedTurn && (!isOnline || isMyOnlineTurn)}
-                activeColor={activePlayer?.config.color || 'red'}
-                onRoll={() => {}}
-                size={62}
-                showButton={false}
-              />
-            </div>
-            {isOnline && !isMyOnlineTurn ? (
-              <div className="w-full py-2.5 px-3 rounded-xl bg-[#1c0f07] border border-[#4a2b16] text-center text-xs font-medium text-[#cdb99d] flex items-center justify-center gap-2 shadow-inner">
-                <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
-                <span>⏳ WAITING FOR {activePlayer?.config.name.toUpperCase()}...</span>
-              </div>
-            ) : !hasRolled && !isRolling && !isAnimatingMove && !isAutomatedTurn ? (
-              <button
-                onPointerDown={handleRollPointerDown}
-                onPointerUp={handleRollPointerUp}
-                onPointerCancel={handleRollPointerCancel}
-                onKeyDown={handleRollKeyDown}
-                onKeyUp={handleRollKeyUp}
-                onClick={handleRollClick}
-                onContextMenu={(e) => e.preventDefault()}
-                className="w-full py-3 px-5 rounded-xl text-white font-black text-sm uppercase tracking-wider shadow-[0_5px_0_#6a3d18,0_8px_14px_rgba(0,0,0,0.45)] active:translate-y-[3px] active:shadow-[0_2px_0_#6a3d18,0_4px_8px_rgba(0,0,0,0.4)] transition-all flex items-center justify-center gap-2 border border-white/25 cursor-pointer select-none touch-none hover:brightness-105"
-                style={{
-                  background: `linear-gradient(180deg, ${activeColorInfo.light || activeColorInfo.primary} 0%, ${activeColorInfo.primary} 50%, ${activeColorInfo.dark} 100%)`,
-                }}
-              >
-                <span className="drop-shadow-sm">🎲 TAP TO ROLL</span>
-              </button>
-            ) : hasRolled ? (
-              <div className="w-full py-2 px-3 rounded-xl bg-[#1c0f07] border border-[#4a2b16] text-center text-xs font-semibold text-[#cdb99d] shadow-inner flex items-center justify-center gap-1">
-                <span>Rolled:</span>
-                <span className="text-[#d6a85f] font-black text-base ml-1">{diceValue}</span>
-              </div>
-            ) : null}
-          </div>
+        {/* Blue Home Dock (Bottom-Right on Desktop, Bottom-Right on Mobile) */}
+        <div className="ludo-area-blue self-end">
+          <PlayerCornerDock
+            color="blue"
+            corner="bottom-right"
+            playerState={bluePlayer}
+            isActive={activePlayer?.config.color === 'blue'}
+            diceValue={diceValue}
+            isRolling={isRolling}
+            canRoll={!isRolling && !hasRolled && !isAnimatingMove && !isAutomatedTurn && (!isOnline || isMyOnlineTurn)}
+            hasRolled={hasRolled}
+            isAnimatingMove={isAnimatingMove}
+            isAutomatedTurn={isAutomatedTurn}
+            isOnline={isOnline}
+            isMyOnlineTurn={isMyOnlineTurn}
+            onRollPointerDown={handleRollPointerDown}
+            onRollPointerUp={handleRollPointerUp}
+            onRollPointerCancel={handleRollPointerCancel}
+            onRollKeyDown={handleRollKeyDown}
+            onRollKeyUp={handleRollKeyUp}
+            onRollClick={handleRollClick}
+          />
         </div>
       </div>
 

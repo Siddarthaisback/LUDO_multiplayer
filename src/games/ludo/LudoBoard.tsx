@@ -272,14 +272,14 @@ export const LudoBoard: React.FC<LudoBoardProps> = React.memo(({
           onClick={() => isMovableToken && onTokenClick(token.tokenId)}
           onMouseEnter={() => isMovableToken && onTokenHover && onTokenHover(token.tokenId)}
           onMouseLeave={() => onTokenHover && onTokenHover(null)}
-          className={`absolute flex items-center justify-center rounded-full pointer-events-auto ${
+          className={`absolute flex items-center justify-center rounded-full pointer-events-auto after:absolute after:top-1/2 after:left-1/2 after:-translate-x-1/2 after:-translate-y-1/2 after:min-w-[44px] after:min-h-[44px] after:w-[calc(100%_+_8px)] after:h-[calc(100%_+_8px)] after:content-[''] ${
             isMovableToken ? 'cursor-pointer z-40' : 'z-30'
           }`}
           style={{
             left: 0,
             top: 0,
-            width: boardWidth > 0 ? `${boardWidth * 0.058}px` : '5.8%',
-            height: boardWidth > 0 ? `${boardWidth * 0.058}px` : '5.8%',
+            width: boardWidth > 0 ? `${boardWidth * 0.065}px` : '6.5%',
+            height: boardWidth > 0 ? `${boardWidth * 0.065}px` : '6.5%',
             transform: transformStyle,
             willChange: isMovableToken ? 'transform' : 'auto',
           }}
@@ -299,7 +299,7 @@ export const LudoBoard: React.FC<LudoBoardProps> = React.memo(({
 
   return (
     <div
-      className={`relative w-full aspect-square max-w-[min(95vw,480px)] sm:max-w-[min(88vw,560px)] md:max-w-[min(82vw,640px)] lg:max-w-[min(80vh,760px)] xl:max-w-[min(84vh,840px)] 2xl:max-w-[min(86vh,900px)] mx-auto rounded-3xl shadow-[0_25px_60px_-15px_rgba(0,0,0,0.8)] select-none transition-transform duration-100 ${
+      className={`relative w-full max-w-[min(96vw,calc(100dvh-210px),600px)] lg:w-[min(calc(100dvh-84px),calc(100vw-580px),880px)] lg:max-w-[880px] aspect-square mx-auto rounded-3xl shadow-[0_25px_60px_-15px_rgba(0,0,0,0.8)] select-none transition-transform duration-100 shrink-0 ${
         isShaking ? 'animate-shake' : ''
       }`}
     >
