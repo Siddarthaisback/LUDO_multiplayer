@@ -738,7 +738,7 @@ export const LudoGame: React.FC<LudoGameProps> = ({
   const bluePlayer = players.find((p) => p.config.color === 'blue');
 
   return (
-    <div className="flex-1 flex flex-col max-w-[1680px] w-full mx-auto px-2 sm:px-4 lg:px-6 py-2 gap-3 sm:gap-4">
+    <div className="flex-1 flex flex-col justify-center items-center max-w-[1680px] w-full mx-auto px-2 sm:px-4 lg:px-6 py-1 sm:py-2 gap-2 sm:gap-4 min-h-0">
       {/* Top Settings Bar */}
       <SettingsBar
         onRestart={handleRestart}
@@ -824,7 +824,7 @@ export const LudoGame: React.FC<LudoGameProps> = ({
         </div>
 
         {/* The Board (Center of Stage) */}
-        <div className="ludo-area-board self-center justify-self-center">
+        <div className="ludo-area-board">
           <LudoBoard
             players={players}
             activeColor={activePlayer?.config.color || 'red'}

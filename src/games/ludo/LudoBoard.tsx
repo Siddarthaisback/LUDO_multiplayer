@@ -278,8 +278,8 @@ export const LudoBoard: React.FC<LudoBoardProps> = React.memo(({
           style={{
             left: 0,
             top: 0,
-            width: boardWidth > 0 ? `${boardWidth * 0.065}px` : '6.5%',
-            height: boardWidth > 0 ? `${boardWidth * 0.065}px` : '6.5%',
+            width: boardWidth > 0 ? `${boardWidth * 0.072}px` : '7.2%',
+            height: boardWidth > 0 ? `${boardWidth * 0.072}px` : '7.2%',
             transform: transformStyle,
             willChange: isMovableToken ? 'transform' : 'auto',
           }}
@@ -299,9 +299,7 @@ export const LudoBoard: React.FC<LudoBoardProps> = React.memo(({
 
   return (
     <div
-      className={`relative w-full max-w-[min(96vw,calc(100dvh-200px),480px)] lg:w-[min(calc(100dvh-84px),calc(100vw-580px),880px)] lg:max-w-[880px] aspect-square mx-auto rounded-3xl shadow-[0_25px_60px_-15px_rgba(0,0,0,0.8)] select-none transition-transform duration-100 shrink-0 ${
-        isShaking ? 'animate-shake' : ''
-      }`}
+      className={`ludo-board-container ${isShaking ? 'animate-shake' : ''}`}
     >
       {/* ── CLEAN MODERN LUDO BOARD (Zero Gap Outer Border) ── */}
       <div

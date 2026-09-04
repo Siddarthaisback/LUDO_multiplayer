@@ -116,14 +116,14 @@
 
 /* ── LUDO STAGE RESPONSIVE GRID AREAS ── */
 .ludo-stage-grid {
+  --ludo-stage-size: min(calc(100vw - 20px), calc(100dvh - 220px), 520px);
   display: grid;
-  width: 100%;
-  max-width: 480px;
+  width: var(--ludo-stage-size);
+  max-width: 100%;
   margin-left: auto;
   margin-right: auto;
   align-items: center;
   justify-content: center;
-  align-content: center;
   gap: 0.5rem;
   grid-template-columns: 1fr 1fr;
   grid-template-rows: auto auto auto;
@@ -135,9 +135,11 @@
 
 @media (min-width: 1024px) {
   .ludo-stage-grid {
+    --ludo-stage-size: min(calc(100dvh - 96px), calc(100vw - 640px), 880px);
+    width: auto;
     max-width: 1680px;
     gap: 1.25rem;
-    grid-template-columns: minmax(min(240px, 100%), 290px) auto minmax(min(240px, 100%), 290px);
+    grid-template-columns: minmax(min(240px, 100%), 290px) var(--ludo-stage-size) minmax(min(240px, 100%), 290px);
     grid-template-rows: 1fr 1fr;
     grid-template-areas:
       "dock-red board dock-green"
@@ -167,8 +169,25 @@
 
 .ludo-area-board {
   grid-area: board;
+  width: 100%;
+  min-width: 0;
   display: flex;
   align-items: center;
   justify-content: center;
 }
+
+.ludo-board-container {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  aspect-ratio: 1 / 1;
+  margin-left: auto;
+  margin-right: auto;
+  flex-shrink: 0;
+  user-select: none;
+  border-radius: 1.5rem;
+  box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.8);
+  transition: transform 100ms;
+}
+
 
