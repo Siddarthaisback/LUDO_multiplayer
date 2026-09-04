@@ -74,7 +74,7 @@ export const PlayerCornerDock: React.FC<PlayerCornerDockProps> = ({
         }}
       >
         {/* Player Avatar & Identity */}
-        <div className="flex items-center gap-2 min-w-0">
+        <div className="flex items-center gap-2 min-w-0 flex-1 mr-2">
           <div
             className="w-8 h-8 rounded-xl flex items-center justify-center text-base shadow-inner border border-white/30 shrink-0 relative"
             style={{ backgroundColor: colorInfo.primary }}
@@ -82,8 +82,11 @@ export const PlayerCornerDock: React.FC<PlayerCornerDockProps> = ({
             {playerState.config.avatar}
             <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-emerald-400 border border-white animate-pulse" />
           </div>
-          <div className="min-w-0 hidden sm:block">
-            <div className="text-xs font-black text-[#f6ead7] truncate max-w-[80px]">
+          <div className="min-w-0 flex-1">
+            <div
+              className="text-xs font-black text-[#f6ead7] truncate block"
+              title={playerState.config.name}
+            >
               {playerState.config.name}
             </div>
             <div className="text-[9px] font-bold uppercase tracking-wider text-emerald-400">
@@ -92,9 +95,12 @@ export const PlayerCornerDock: React.FC<PlayerCornerDockProps> = ({
           </div>
         </div>
 
+        {/* Separator */}
+        <div className="h-7 w-[1px] bg-white/10 shrink-0 mx-0.5" />
+
         {/* Shifting 3D Dice & Roll Trigger / Status */}
-        <div className="flex items-center gap-1.5 sm:gap-2">
-          {/* Interactive 3D Dice */}
+        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          {/* Interactive 3D Dice in Reserved Clipped Slot */}
           <div
             role="button"
             tabIndex={canRoll && !hasRolled && !isRolling && !isAutomatedTurn && (!isOnline || isMyOnlineTurn) ? 0 : -1}
@@ -106,7 +112,7 @@ export const PlayerCornerDock: React.FC<PlayerCornerDockProps> = ({
             onKeyUp={onRollKeyUp}
             onClick={onRollClick}
             onContextMenu={(e) => e.preventDefault()}
-            className="touch-none select-none cursor-pointer p-0.5 shrink-0 focus:outline-none focus:ring-2 focus:ring-amber-400 rounded-xl"
+            className="w-[52px] h-[52px] flex items-center justify-center shrink-0 rounded-xl bg-[#1a0e07]/60 border border-white/10 hover:border-amber-400/50 touch-none select-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-400 overflow-hidden shadow-inner transition-colors"
             title="Tap or Hold to Roll"
           >
             <Dice3D
@@ -115,7 +121,7 @@ export const PlayerCornerDock: React.FC<PlayerCornerDockProps> = ({
               canRoll={canRoll}
               activeColor={color}
               onRoll={() => {}}
-              size={42}
+              size={24}
               showButton={false}
             />
           </div>
@@ -168,15 +174,18 @@ export const PlayerCornerDock: React.FC<PlayerCornerDockProps> = ({
       data-active="false"
       className="h-[58px] sm:h-[64px] lg:h-[72px] w-full min-w-0 rounded-2xl bg-[#241309]/90 border border-[#4d2c16] px-2.5 sm:px-3 lg:px-4 flex items-center justify-between shadow-md select-none transition-all opacity-85 hover:opacity-100"
     >
-      <div className="flex items-center gap-2 min-w-0">
+      <div className="flex items-center gap-2 min-w-0 flex-1 mr-2">
         <div
           className="w-8 h-8 rounded-xl flex items-center justify-center text-base shadow-inner border border-white/20 shrink-0"
           style={{ backgroundColor: `${colorInfo.primary}33` }}
         >
           {playerState.config.avatar}
         </div>
-        <div className="min-w-0">
-          <div className="text-xs font-bold text-[#f6ead7] truncate max-w-[70px] sm:max-w-[110px]">
+        <div className="min-w-0 flex-1">
+          <div
+            className="text-xs font-bold text-[#f6ead7] truncate block"
+            title={playerState.config.name}
+          >
             {playerState.config.name}
           </div>
           <div className="text-[10px] text-[#cdb99d] flex items-center gap-1 font-medium">

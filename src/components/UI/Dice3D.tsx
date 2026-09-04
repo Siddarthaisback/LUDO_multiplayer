@@ -36,36 +36,40 @@ export const Dice3D: React.FC<Dice3DProps> = ({
     return `show-${num}`;
   };
 
+  // Proportional dot diameter and face padding based on size
+  const dotPx = Math.max(4, Math.round(size * 0.16));
+  const centerDotPx = Math.max(5, Math.round(size * 0.22));
+  const padPx = Math.max(2, Math.round(size * 0.08));
+
   // Render dice face pips with crisp round dots
   const renderPips = (count: number) => {
-    const dot = (key: number, isCenterRed = false) => (
-      <div
-        key={key}
-        className="w-3.5 h-3.5 rounded-full shadow-inner"
-        style={{
-          boxShadow: 'inset 0 1.5px 3px rgba(0,0,0,0.7)',
-          backgroundColor: isCenterRed ? '#ef4444' : '#0f172a',
-        }}
-      />
-    );
+    const dot = (key: number, isCenterRed = false, isSingleCenter = false) => {
+      const dSize = isSingleCenter ? centerDotPx : dotPx;
+      return (
+        <div
+          key={key}
+          className="rounded-full shadow-inner shrink-0"
+          style={{
+            width: `${dSize}px`,
+            height: `${dSize}px`,
+            boxShadow: 'inset 0 1.5px 3px rgba(0,0,0,0.7)',
+            backgroundColor: isCenterRed ? '#ef4444' : '#0f172a',
+          }}
+        />
+      );
+    };
 
     if (count === 1) {
       return (
         <div className="w-full h-full flex items-center justify-center">
-          <div
-            className="w-5 h-5 rounded-full shadow-inner animate-pulse"
-            style={{
-              backgroundColor: '#ef4444',
-              boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.5)',
-            }}
-          />
+          {dot(1, true, true)}
         </div>
       );
     }
 
     if (count === 2) {
       return (
-        <div className="w-full h-full flex flex-col justify-between p-2.5">
+        <div className="w-full h-full flex flex-col justify-between" style={{ padding: `${padPx}px` }}>
           <div className="flex justify-start">{dot(1)}</div>
           <div className="flex justify-end">{dot(2)}</div>
         </div>
@@ -74,7 +78,7 @@ export const Dice3D: React.FC<Dice3DProps> = ({
 
     if (count === 3) {
       return (
-        <div className="w-full h-full flex flex-col justify-between p-2.5">
+        <div className="w-full h-full flex flex-col justify-between" style={{ padding: `${padPx}px` }}>
           <div className="flex justify-start">{dot(1)}</div>
           <div className="flex justify-center">{dot(2)}</div>
           <div className="flex justify-end">{dot(3)}</div>
@@ -84,7 +88,7 @@ export const Dice3D: React.FC<Dice3DProps> = ({
 
     if (count === 4) {
       return (
-        <div className="w-full h-full grid grid-cols-2 grid-rows-2 p-2.5 place-items-center">
+        <div className="w-full h-full grid grid-cols-2 grid-rows-2 place-items-center" style={{ padding: `${padPx}px` }}>
           {dot(1)}{dot(2)}{dot(3)}{dot(4)}
         </div>
       );
@@ -92,18 +96,18 @@ export const Dice3D: React.FC<Dice3DProps> = ({
 
     if (count === 5) {
       return (
-        <div className="w-full h-full relative p-2.5">
-          <div className="absolute top-2.5 left-2.5">{dot(1)}</div>
-          <div className="absolute top-2.5 right-2.5">{dot(2)}</div>
+        <div className="w-full h-full relative" style={{ padding: `${padPx}px` }}>
+          <div className="absolute" style={{ top: `${padPx}px`, left: `${padPx}px` }}>{dot(1)}</div>
+          <div className="absolute" style={{ top: `${padPx}px`, right: `${padPx}px` }}>{dot(2)}</div>
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">{dot(3, true)}</div>
-          <div className="absolute bottom-2.5 left-2.5">{dot(4)}</div>
-          <div className="absolute bottom-2.5 right-2.5">{dot(5)}</div>
+          <div className="absolute" style={{ bottom: `${padPx}px`, left: `${padPx}px` }}>{dot(4)}</div>
+          <div className="absolute" style={{ bottom: `${padPx}px`, right: `${padPx}px` }}>{dot(5)}</div>
         </div>
       );
     }
 
     return (
-      <div className="w-full h-full grid grid-cols-2 grid-rows-3 p-2 gap-1.5 place-items-center">
+      <div className="w-full h-full grid grid-cols-2 grid-rows-3 place-items-center" style={{ padding: `${padPx}px` }}>
         {dot(1)}{dot(2)}{dot(3)}{dot(4)}{dot(5)}{dot(6)}
       </div>
     );
@@ -121,22 +125,20 @@ export const Dice3D: React.FC<Dice3DProps> = ({
         onClick={handleRollClick}
         className={`dice-scene relative transition-all duration-300 ${
           canRoll && !disabled
-            ? 'hover:scale-110 active:scale-95 cursor-pointer filter drop-shadow-[0_12px_24px_rgba(0,0,0,0.5)]'
-            : 'opacity-90 cursor-not-allowed filter drop-shadow-[0_4px_10px_rgba(0,0,0,0.3)]'
+            ? 'hover:scale-[1.02] active:scale-95 cursor-pointer'
+            : 'opacity-90 cursor-not-allowed'
         }`}
-        style={{ width: size, height: size }}
+        style={{
+          width: `${size}px`,
+          height: `${size}px`,
+          ['--dice-size' as any]: `${size}px`,
+          filter: canRoll && !disabled
+            ? `drop-shadow(0 0 5px ${colorInfo.primary}99) drop-shadow(0 4px 8px rgba(0,0,0,0.4))`
+            : 'drop-shadow(0 2px 5px rgba(0,0,0,0.3))',
+        }}
       >
-        {/* Pulsing Aura Ring when available */}
-        {canRoll && !disabled && (
-          <div
-            className="absolute -inset-3 rounded-3xl opacity-80 blur-lg animate-pulse pointer-events-none"
-            style={{ backgroundColor: colorInfo.primary }}
-          />
-        )}
-
         <div
           className={`dice-cube ${isRolling ? 'rolling' : getFaceClass(value)}`}
-          style={{ width: size, height: size }}
         >
           <div className="dice-face front" style={faceStyle}>{renderPips(1)}</div>
           <div className="dice-face back" style={faceStyle}>{renderPips(6)}</div>

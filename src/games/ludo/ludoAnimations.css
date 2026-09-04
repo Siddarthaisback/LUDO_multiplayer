@@ -134,7 +134,7 @@
 @media (min-width: 1024px) {
   .ludo-stage-grid {
     gap: 1.25rem;
-    grid-template-columns: minmax(220px, 280px) auto minmax(220px, 280px);
+    grid-template-columns: minmax(min(240px, 100%), 290px) auto minmax(min(240px, 100%), 290px);
     grid-template-rows: 1fr 1fr;
     grid-template-areas:
       "dock-red board dock-green"
