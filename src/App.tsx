@@ -150,14 +150,16 @@ export function App() {
   };
 
   return (
-    <main className="min-h-screen mahogany-table-bg text-slate-100 flex flex-col justify-between selection:bg-amber-500 selection:text-slate-950">
-      {/* Background Ambient Table Atmosphere */}
+    <main className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-between selection:bg-amber-500 selection:text-slate-950">
+      {/* Background Ambient Glow */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[500px] bg-amber-500/[0.08] rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -top-40 left-1/4 w-96 h-96 bg-amber-600/10 rounded-full blur-3xl" />
+        <div className="absolute top-1/3 -right-40 w-96 h-96 bg-emerald-600/10 rounded-full blur-3xl" />
+        <div className="absolute -bottom-40 left-1/3 w-96 h-96 bg-indigo-600/10 rounded-full blur-3xl" />
       </div>
 
       {/* Header Bar */}
-      <header className="relative z-10 border-b border-amber-900/40 bg-[#140703]/90 backdrop-blur-md px-4 sm:px-6 py-3 flex items-center justify-between">
+      <header className="relative z-10 border-b border-slate-800/80 bg-slate-950 px-4 sm:px-6 py-3 flex items-center justify-between">
         <button
           onClick={handleHome}
           className="flex items-center gap-2.5 text-left group transition-all cursor-pointer"
