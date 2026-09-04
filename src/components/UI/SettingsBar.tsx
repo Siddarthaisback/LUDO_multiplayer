@@ -54,7 +54,7 @@ export const SettingsBar: React.FC<SettingsBarProps> = ({
   return (
     <>
       {/* ── Compact Top Bar (Home + Title on Left, Settings on Right) ── */}
-      <div className="flex items-center justify-between gap-3 px-3 sm:px-4 py-2 bg-slate-900 border border-slate-800 rounded-2xl shadow-xl select-none">
+      <div className="flex items-center justify-between gap-3 px-3 sm:px-4 py-2 bg-gradient-to-r from-slate-900/95 via-blue-950/90 to-slate-900/95 border-2 border-amber-400/30 rounded-2xl shadow-xl select-none">
         {/* Left: Home Navigation & Game Title */}
         <div className="flex items-center gap-2.5">
           <button
