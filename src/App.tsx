@@ -150,24 +150,25 @@ export function App() {
   };
 
   return (
-    <main className="min-h-screen bg-[#060d1d] bg-[radial-gradient(circle_at_50%_12%,#172c58_0%,#0b1731_42%,#060d1d_100%)] text-slate-100 flex flex-col justify-between selection:bg-amber-500 selection:text-slate-950 relative">
-      {/* Subtle Game Room Backdrop Pattern */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0 opacity-[0.03] bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:24px_24px]" />
+    <main className="min-h-screen bg-[#221309] bg-[radial-gradient(ellipse_at_50%_38%,_#7a4b26_0%,_#543217_40%,_#331d0d_80%,_#1f1006_100%)] text-[#f6ead7] flex flex-col justify-between selection:bg-amber-600 selection:text-white relative">
+      {/* Subtle Physical Wood Tabletop Grain & Warm Overhead Lighting */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0 opacity-[0.04] bg-[radial-gradient(#f6ead7_1px,transparent_1px),radial-gradient(#e2a865_1px,transparent_1px)] [background-size:20px_20px,32px_32px] [background-position:0_0,10px_10px]" />
+      <div className="fixed inset-0 pointer-events-none z-0 bg-[radial-gradient(circle_at_50%_38%,rgba(255,228,185,0.08)_0%,transparent_65%)]" />
 
       {/* Header Bar */}
-      <header className="relative z-10 border-b border-[#294376] bg-[#0c162e]/95 px-4 sm:px-6 py-3 flex items-center justify-between shadow-sm">
+      <header className="relative z-10 border-b border-[#4d2c16] bg-[#23140a]/95 px-4 sm:px-6 py-3 flex items-center justify-between shadow-md">
         <button
           onClick={handleHome}
           className="flex items-center gap-2.5 text-left group transition-all cursor-pointer"
         >
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-400 via-yellow-400 to-amber-600 flex items-center justify-center text-base shadow-md group-hover:scale-105 transition-transform text-slate-950 font-black">
+          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-400 via-yellow-500 to-amber-700 flex items-center justify-center text-base shadow-md group-hover:scale-105 transition-transform text-slate-950 font-black border border-amber-300/40">
             {isNative ? '🎲' : '♠️'}
           </div>
           <div>
-            <h1 className="text-base sm:text-lg font-black tracking-tight text-white leading-none">
-              {isNative ? 'LUDO' : 'TAAS'} <span className="text-amber-400">{isNative ? 'CLASSIC' : 'ARENA'}</span>
+            <h1 className="text-base sm:text-lg font-black tracking-tight text-[#f6ead7] leading-none">
+              {isNative ? 'LUDO' : 'TAAS'} <span className="text-[#d6a85f]">{isNative ? 'CLASSIC' : 'ARENA'}</span>
             </h1>
-            <span className="text-[10px] text-amber-300/80 font-bold uppercase tracking-wider">
+            <span className="text-[10px] text-[#cdb99d] font-bold uppercase tracking-wider">
               {isNative ? 'Offline Board Game' : 'Nepali & Classic Hub'}
             </span>
           </div>
