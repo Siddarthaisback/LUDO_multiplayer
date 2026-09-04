@@ -739,15 +739,16 @@ export const LudoGame: React.FC<LudoGameProps> = ({
 
   return (
     <div className="flex-1 flex flex-col justify-center items-center max-w-[1680px] w-full mx-auto px-2 sm:px-4 lg:px-6 py-1 sm:py-2 gap-2 sm:gap-4 min-h-0 relative isolate">
-      {/* Decorative Fixed Rustic Tavern Tabletop Theme Background */}
+      {/* Decorative Fixed 90-Degree Top-Down Luxury Wood Tabletop Theme Background */}
       <div className="fixed inset-0 pointer-events-none -z-10 overflow-hidden select-none" aria-hidden="true">
         <img
-          src="/assets/ludo_bg_tavern.jpg"
+          src="/assets/ludo_bg_topdown_wood.jpg"
           alt=""
           aria-hidden="true"
-          className="w-full h-full object-cover object-center filter brightness-[0.70] contrast-[1.08]"
+          className="w-full h-full object-cover object-center filter brightness-[0.82] contrast-[1.05]"
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/20 to-black/60" />
+        {/* Overhead radial vignette: subtle bright center under board, darkening toward table edges */}
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(0,0,0,0.15)_0%,rgba(0,0,0,0.55)_100%)]" />
       </div>
 
       {/* Top Settings Bar */}
