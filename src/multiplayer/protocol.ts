@@ -1,7 +1,7 @@
 import { PlayerColor, PlayerConfig } from '../types/game';
 import { LudoPlayerState, LudoGameOptions } from '../types/ludo';
 
-export const PROTOCOL_VERSION = '1.0.0';
+export const PROTOCOL_VERSION = '1.1.0';
 
 export const SEAT_COLORS: PlayerColor[] = ['red', 'green', 'yellow', 'blue'];
 
@@ -95,6 +95,7 @@ export type WireMessage =
       type: 'ROLL_REQUEST';
       matchId: string;
       seatIndex: number;
+      forceSix?: boolean;
       timestamp: number;
     }
   | {

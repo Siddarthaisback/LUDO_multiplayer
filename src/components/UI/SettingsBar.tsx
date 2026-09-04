@@ -16,8 +16,8 @@ import { AnimationSpeed, BoardStyleMode } from '../../types/game';
 import { soundEffects } from '../../engine/soundEffects';
 
 interface SettingsBarProps {
-  speed: AnimationSpeed;
-  onSpeedChange: (speed: AnimationSpeed) => void;
+  speed?: AnimationSpeed;
+  onSpeedChange?: (speed: AnimationSpeed) => void;
   onRestart: () => void;
   onHome: () => void;
   onOpenRules: () => void;
@@ -30,7 +30,7 @@ interface SettingsBarProps {
 }
 
 export const SettingsBar: React.FC<SettingsBarProps> = ({
-  speed,
+  speed = 'normal',
   onSpeedChange,
   onRestart,
   onHome,
@@ -239,32 +239,34 @@ export const SettingsBar: React.FC<SettingsBarProps> = ({
               </button>
 
               {/* 6. Game Speed Switcher */}
-              <div className="p-3 rounded-2xl bg-slate-950/70 border border-slate-800 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-xl bg-slate-800 flex items-center justify-center text-slate-300">
-                    <FastForward className="w-4 h-4" />
+              {onSpeedChange && (
+                <div className="p-3 rounded-2xl bg-slate-950/70 border border-slate-800 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-xl bg-slate-800 flex items-center justify-center text-slate-300">
+                      <FastForward className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="text-xs font-black text-white">Animation Speed</div>
+                      <div className="text-[10px] text-slate-400">Controls dealing and piece movement pace</div>
+                    </div>
                   </div>
-                  <div>
-                    <div className="text-xs font-black text-white">Animation Speed</div>
-                    <div className="text-[10px] text-slate-400">Controls dealing and piece movement pace</div>
+                  <div className="flex items-center gap-1 bg-slate-900 p-1 rounded-xl border border-slate-800">
+                    {(['normal', 'fast', 'turbo'] as const).map((s) => (
+                      <button
+                        key={s}
+                        onClick={() => onSpeedChange(s)}
+                        className={`px-2 py-1 rounded-lg text-[10px] font-bold capitalize transition-all ${
+                          speed === s
+                            ? 'bg-indigo-600 text-white shadow'
+                            : 'text-slate-400 hover:text-white'
+                        }`}
+                      >
+                        {s}
+                      </button>
+                    ))}
                   </div>
                 </div>
-                <div className="flex items-center gap-1 bg-slate-900 p-1 rounded-xl border border-slate-800">
-                  {(['normal', 'fast', 'turbo'] as const).map((s) => (
-                    <button
-                      key={s}
-                      onClick={() => onSpeedChange(s)}
-                      className={`px-2 py-1 rounded-lg text-[10px] font-bold capitalize transition-all ${
-                        speed === s
-                          ? 'bg-indigo-600 text-white shadow'
-                          : 'text-slate-400 hover:text-white'
-                      }`}
-                    >
-                      {s}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              )}
 
               {/* 7. Rules & Strategy Guide */}
               <button

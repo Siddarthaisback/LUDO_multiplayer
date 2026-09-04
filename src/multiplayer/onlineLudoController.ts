@@ -2,7 +2,7 @@ import { MultiplayerSession, GameSnapshot, WireMessage } from './protocol';
 import { peerTransport } from './peerService';
 
 export interface OnlineGameCallbacks {
-  onRemoteRoll?: (rollValue: number, playerIndex: number) => void;
+  onRemoteRoll?: (rollValue: number, playerIndex: number, forceSix?: boolean) => void;
   onRemoteMove?: (tokenId: number, playerIndex: number) => void;
   onStateSnapshot?: (snapshot: GameSnapshot) => void;
   onHostDisconnected?: (message: string) => void;
@@ -65,7 +65,7 @@ export class OnlineLudoController {
   /**
    * Called when local player clicks Roll Dice
    */
-  public requestRoll(activePlayerIndex: number): boolean {
+  public requestRoll(activePlayerIndex: number, forceSix: boolean = false): boolean {
     if (!this.session) return true;
     if (!this.isMyTurn(activePlayerIndex)) return false;
 
@@ -78,6 +78,7 @@ export class OnlineLudoController {
         type: 'ROLL_REQUEST',
         matchId: this.session.matchId,
         seatIndex: this.session.mySeatIndex,
+        forceSix: Boolean(forceSix),
         timestamp: Date.now(),
       });
       return false; // Wait for host to broadcast authoritative roll
@@ -153,9 +154,16 @@ export class OnlineLudoController {
             return;
           }
 
+          // 5. Validate forceSix property if present
+          if (msg.forceSix !== undefined && typeof msg.forceSix !== 'boolean') {
+            console.warn(`[OnlineLudo] Rejected malformed ROLL_REQUEST: forceSix must be boolean`);
+            return;
+          }
+
           // Mark in-flight until snapshot broadcasts
           this.isActionInFlight = true;
-          this.callbacks.onRemoteRoll?.(0, msg.seatIndex);
+          const isForcedSix = typeof msg.forceSix === 'boolean' ? msg.forceSix : false;
+          this.callbacks.onRemoteRoll?.(0, msg.seatIndex, isForcedSix);
         }
         break;
       }

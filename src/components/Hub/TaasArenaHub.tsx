@@ -6,7 +6,6 @@ import { PlayerProfileModal } from './PlayerProfileModal';
 
 interface TaasArenaHubProps {
   onSelectGame: (gameId: TaasGameId) => void;
-  onLaunchLudoAutoPlay?: () => void;
   onOpenOnlineMultiplayer?: () => void;
 }
 
@@ -14,7 +13,6 @@ type HubCategory = 'all' | 'cards' | 'board';
 
 export const TaasArenaHub: React.FC<TaasArenaHubProps> = ({
   onSelectGame,
-  onLaunchLudoAutoPlay,
   onOpenOnlineMultiplayer,
 }) => {
   const [showRules, setShowRules] = useState(false);
@@ -277,20 +275,6 @@ export const TaasArenaHub: React.FC<TaasArenaHubProps> = ({
                 >
                   <span>🌐</span>
                   <span>Online Room</span>
-                </button>
-              )}
-
-              {game.id === 'ludo' && onLaunchLudoAutoPlay && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onLaunchLudoAutoPlay();
-                  }}
-                  title="Launch automated AI match on laptop (Spectator Mode)"
-                  className="py-2 px-2.5 sm:px-3 rounded-xl font-black text-xs bg-purple-950/80 hover:bg-purple-900 text-purple-300 hover:text-purple-100 border border-purple-500/50 hover:border-purple-400 shadow-sm transition-all flex items-center gap-1 cursor-pointer"
-                >
-                  <Sparkles className="w-3.5 h-3.5 text-purple-400" />
-                  <span>Auto-Play</span>
                 </button>
               )}
 

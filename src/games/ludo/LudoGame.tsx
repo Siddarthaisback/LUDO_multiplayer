@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { flushSync } from 'react-dom';
 import { Capacitor } from '@capacitor/core';
-import { PlayerConfig, AnimationSpeed, PlayerColor } from '../../types/game';
+import { PlayerConfig, PlayerColor } from '../../types/game';
 import { LudoPlayerState, LudoGameOptions, MoveOption } from '../../types/ludo';
 import { LudoBoard } from './LudoBoard';
 import { LudoEngine } from './LudoEngine';
@@ -18,18 +18,24 @@ import { BoardEffectItem, PathPreviewData } from './ludoAnimationTypes';
 import { derivePathPreview } from './ludoMotion';
 import { getLudoVisualPosition } from './ludoGeometry';
 import { LudoSetupModal } from './ui/LudoSetupModal';
-import { Sparkles, Wifi } from 'lucide-react';
+import { Wifi } from 'lucide-react';
 import { MultiplayerSession } from '../../multiplayer/protocol';
 import { onlineLudoController } from '../../multiplayer/onlineLudoController';
 
 const isNative = typeof window !== 'undefined' && Capacitor.isNativePlatform();
+const DICE_HOLD_THRESHOLD_MS = 500;
+const BOT_ROLL_DELAY_MS = 800;
+const BOT_MOVE_DELAY_MS = 750;
+const DICE_ROLL_DURATION_MS = 600;
+const TOKEN_HOP_DURATION_MS = 200;
+const PASS_TURN_DELAY_MS = 800;
+const AFTER_MOVE_DELAY_MS = 500;
 
 interface LudoGameProps {
   initialPlayers: PlayerConfig[];
   options: LudoGameOptions;
   onHome: () => void;
   onOpenSetup?: () => void;
-  initialAutoPlay?: boolean;
   multiplayerSession?: MultiplayerSession | null;
 }
 
@@ -38,7 +44,6 @@ export const LudoGame: React.FC<LudoGameProps> = ({
   options,
   onHome,
   onOpenSetup,
-  initialAutoPlay = false,
   multiplayerSession = null,
 }) => {
   const [players, setPlayers] = useState<LudoPlayerState[]>(() =>
@@ -70,9 +75,6 @@ export const LudoGame: React.FC<LudoGameProps> = ({
   const isMyOnlineTurn = isOnline ? multiplayerSession!.mySeatIndex === activePlayerIndex : true;
   const [networkDisconnectError, setNetworkDisconnectError] = useState<string | null>(null);
 
-  const [speed, setSpeed] = useState<AnimationSpeed>('normal');
-  const [isAutoPlay, setIsAutoPlay] = useState<boolean>(() => Boolean(initialAutoPlay && !isNative && !multiplayerSession));
-  const [isAutoPlayPaused, setIsAutoPlayPaused] = useState<boolean>(false);
   const [boardStyle, setBoardStyle] = useState<'luxury' | 'classic'>('classic');
   const [isShaking, setIsShaking] = useState(false);
 
@@ -82,17 +84,17 @@ export const LudoGame: React.FC<LudoGameProps> = ({
   const [isAnimatingMove, setIsAnimatingMove] = useState(false);
 
   const activePlayer = players[activePlayerIndex];
-  // In Auto-Play mode, all turns are automated unless paused; in online mode, host automates bot turns (e.g. disconnected guests)
+  // In online mode, host automates bot turns; in local mode, bots auto-play their turns
   const isAutomatedTurn = isOnline
     ? Boolean(multiplayerSession?.isHost && activePlayer?.config.type === 'bot')
-    : isAutoPlay
-    ? !isAutoPlayPaused
     : activePlayer?.config.type === 'bot';
   const botActionTimerRef = useRef<any>(null);
   const diceRollTimerRef = useRef<any>(null);
   const turnTimerRef = useRef<any>(null);
   const currentMoveSessionRef = useRef<number>(0);
-  const handleRollDiceRef = useRef<(fromRemote?: boolean) => void>(() => {});
+  const rollPressStartTimeRef = useRef<number | null>(null);
+  const hasHandledReleaseRef = useRef<boolean>(false);
+  const handleRollDiceRef = useRef<(fromRemote?: boolean, forceSix?: boolean) => void>(() => {});
   const handleSelectTokenRef = useRef<(tokenId: number, fromRemote?: boolean) => void>(() => {});
 
   // Invalidate any active move transaction or timer on unmount
@@ -110,9 +112,9 @@ export const LudoGame: React.FC<LudoGameProps> = ({
     if (!multiplayerSession) return;
 
     onlineLudoController.setCallbacks({
-      onRemoteRoll: () => {
+      onRemoteRoll: (_val, _seatIndex, forceSix) => {
         if (multiplayerSession.isHost) {
-          handleRollDiceRef.current(true);
+          handleRollDiceRef.current(true, Boolean(forceSix));
         }
       },
       onRemoteMove: (tokenId) => {
@@ -209,14 +211,12 @@ export const LudoGame: React.FC<LudoGameProps> = ({
     if (winner || isRolling || isAnimatingMove) return;
 
     if (isAutomatedTurn && !hasRolled && activePlayer && !activePlayer.rank) {
-      const rollDelay = speed === 'turbo' ? 200 : speed === 'fast' ? 450 : 800;
       botActionTimerRef.current = setTimeout(() => {
         handleRollDice();
-      }, rollDelay);
+      }, BOT_ROLL_DELAY_MS);
     }
 
     if (isAutomatedTurn && hasRolled && validMoves.length > 0 && activePlayer) {
-      const moveDelay = speed === 'turbo' ? 200 : speed === 'fast' ? 400 : 750;
       botActionTimerRef.current = setTimeout(() => {
         const chosenTokenId = BotAI.selectBestLudoMove(
           validMoves,
@@ -229,21 +229,92 @@ export const LudoGame: React.FC<LudoGameProps> = ({
         if (chosenTokenId !== null) {
           handleSelectToken(chosenTokenId);
         }
-      }, moveDelay);
+      }, BOT_MOVE_DELAY_MS);
     }
 
     return () => {
       if (botActionTimerRef.current) clearTimeout(botActionTimerRef.current);
     };
-  }, [activePlayerIndex, hasRolled, isRolling, validMoves, winner, isAutomatedTurn, speed, isAnimatingMove]);
+  }, [activePlayerIndex, hasRolled, isRolling, validMoves, winner, isAutomatedTurn, isAnimatingMove]);
 
-  // Dice Roll
-  const handleRollDice = (fromRemote: boolean = false) => {
+  // Pointer and Keyboard Hold-to-Roll Handlers (Secret 500ms Hold Trick)
+  const handleRollPointerDown = (e: React.PointerEvent) => {
+    if (isRolling || hasRolled || winner || isAnimatingMove || isAutomatedTurn) return;
+    if (isOnline && !isMyOnlineTurn) return;
+
+    rollPressStartTimeRef.current = performance.now();
+    hasHandledReleaseRef.current = false;
+    try {
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    } catch {
+      // Ignore
+    }
+  };
+
+  const handleRollPointerUp = (e: React.PointerEvent) => {
+    if (rollPressStartTimeRef.current === null) return;
+    const elapsedMs = performance.now() - rollPressStartTimeRef.current;
+    rollPressStartTimeRef.current = null;
+    hasHandledReleaseRef.current = true;
+    try {
+      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+    } catch {
+      // Ignore
+    }
+
+    const forceSix = elapsedMs >= DICE_HOLD_THRESHOLD_MS;
+    handleRollDice(false, forceSix);
+  };
+
+  const handleRollPointerCancel = (e: React.PointerEvent) => {
+    rollPressStartTimeRef.current = null;
+    hasHandledReleaseRef.current = true;
+    try {
+      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+    } catch {
+      // Ignore
+    }
+  };
+
+  const handleRollClick = () => {
+    if (hasHandledReleaseRef.current) {
+      hasHandledReleaseRef.current = false;
+      return;
+    }
+    handleRollDice(false, false);
+  };
+
+  const handleRollKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === ' ' || e.key === 'Enter') {
+      if (e.repeat) return;
+      if (isRolling || hasRolled || winner || isAnimatingMove || isAutomatedTurn) return;
+      if (isOnline && !isMyOnlineTurn) return;
+      if (rollPressStartTimeRef.current === null) {
+        rollPressStartTimeRef.current = performance.now();
+        hasHandledReleaseRef.current = false;
+      }
+    }
+  };
+
+  const handleRollKeyUp = (e: React.KeyboardEvent) => {
+    if (e.key === ' ' || e.key === 'Enter') {
+      if (rollPressStartTimeRef.current !== null) {
+        const elapsedMs = performance.now() - rollPressStartTimeRef.current;
+        rollPressStartTimeRef.current = null;
+        hasHandledReleaseRef.current = true;
+        const forceSix = elapsedMs >= DICE_HOLD_THRESHOLD_MS;
+        handleRollDice(false, forceSix);
+      }
+    }
+  };
+
+  // Dice Roll (Secret Hold: >= 500ms forces 6; normal tap produces standard 1-6 RNG)
+  const handleRollDice = (fromRemote: boolean = false, forceSix: boolean = false) => {
     if (isRolling || hasRolled || winner || isAnimatingMove) return;
     if (isOnline && !fromRemote && !isMyOnlineTurn) return;
 
     if (isOnline && !multiplayerSession?.isHost) {
-      onlineLudoController.requestRoll(activePlayerIndex);
+      onlineLudoController.requestRoll(activePlayerIndex, forceSix);
       return;
     }
 
@@ -252,8 +323,8 @@ export const LudoGame: React.FC<LudoGameProps> = ({
 
     soundEffects.playDiceRoll();
     setIsRolling(true);
-    const roll = Math.floor(Math.random() * 6) + 1;
-    const rollDuration = speed === 'turbo' ? 250 : speed === 'fast' ? 400 : 600;
+    const roll = forceSix ? 6 : Math.floor(Math.random() * 6) + 1;
+    const rollDuration = DICE_ROLL_DURATION_MS;
 
     if (diceRollTimerRef.current) clearTimeout(diceRollTimerRef.current);
     diceRollTimerRef.current = setTimeout(() => {
@@ -300,7 +371,7 @@ export const LudoGame: React.FC<LudoGameProps> = ({
       }
 
       if (legalMoves.length === 0) {
-        const nextDelay = speed === 'turbo' ? 300 : speed === 'fast' ? 500 : 800;
+        const nextDelay = PASS_TURN_DELAY_MS;
         if (turnTimerRef.current) clearTimeout(turnTimerRef.current);
         turnTimerRef.current = setTimeout(() => {
           if (sessionAtRoll === currentMoveSessionRef.current) {
@@ -351,7 +422,7 @@ export const LudoGame: React.FC<LudoGameProps> = ({
       setHoveredTokenId(null);
     });
 
-    const hopDuration = speed === 'turbo' ? 100 : speed === 'fast' ? 150 : 200;
+    const hopDuration = TOKEN_HOP_DURATION_MS;
     const playerColor = currentPlayer.config.color;
     const tokenKey = `${playerColor}-${tokenId}`;
 
@@ -492,7 +563,7 @@ export const LudoGame: React.FC<LudoGameProps> = ({
 
     setIsAnimatingMove(false);
 
-    const nextDelay = speed === 'turbo' ? 150 : speed === 'fast' ? 300 : 500;
+    const nextDelay = AFTER_MOVE_DELAY_MS;
     if (turnTimerRef.current) clearTimeout(turnTimerRef.current);
     turnTimerRef.current = setTimeout(() => {
       if (sessionId === currentMoveSessionRef.current) {
@@ -582,7 +653,8 @@ export const LudoGame: React.FC<LudoGameProps> = ({
     setEffects([]);
     setIsAnimatingMove(false);
     setHoveredTokenId(null);
-    setIsAutoPlayPaused(false);
+    rollPressStartTimeRef.current = null;
+    hasHandledReleaseRef.current = false;
   };
 
   const handleStartConfiguredMatch = (newPlayers: PlayerConfig[]) => {
@@ -664,42 +736,15 @@ export const LudoGame: React.FC<LudoGameProps> = ({
 
   const activeColorInfo = activePlayer ? COLOR_MAP[activePlayer.config.color] : COLOR_MAP.red;
 
-  const handleToggleAutoPlay = () => {
-    if (isNative) return;
-    if (!isAutoPlay) {
-      setIsAutoPlay(true);
-      setIsAutoPlayPaused(false);
-    } else {
-      setIsAutoPlay(false);
-      setIsAutoPlayPaused(false);
-      if (botActionTimerRef.current) clearTimeout(botActionTimerRef.current);
-    }
-  };
-
-  const handleTogglePauseAutoPlay = () => {
-    if (isNative || !isAutoPlay) return;
-    setIsAutoPlayPaused((prev) => {
-      const next = !prev;
-      if (next && botActionTimerRef.current) {
-        clearTimeout(botActionTimerRef.current);
-      }
-      return next;
-    });
-  };
-
   return (
     <div className="flex-1 flex flex-col max-w-[1680px] w-full mx-auto px-2 sm:px-4 lg:px-6 py-2 gap-3 sm:gap-4">
       {/* Top Settings Bar */}
       <SettingsBar
-        speed={speed}
-        onSpeedChange={setSpeed}
         onRestart={handleRestart}
         onHome={handleHome}
         onOpenRules={() => setShowRules(true)}
         onOpenSetup={handleOpenSetup}
         gameTitle="Royal Ludo (🎲 3D Physics)"
-        isAutoPlay={isAutoPlay}
-        onToggleAutoPlay={!isNative ? handleToggleAutoPlay : undefined}
         boardStyle={boardStyle}
         onToggleBoardStyle={() => setBoardStyle(boardStyle === 'luxury' ? 'classic' : 'luxury')}
       />
@@ -727,36 +772,6 @@ export const LudoGame: React.FC<LudoGameProps> = ({
         </div>
       )}
 
-      {/* Pulsing Amber Auto-Play Spectator Banner */}
-      {!isNative && isAutoPlay && !isOnline && (
-        <div
-          className={`w-full py-2 px-4 rounded-2xl bg-gradient-to-r from-amber-500/20 via-yellow-500/25 to-amber-500/20 border border-amber-400/60 flex items-center justify-between shadow-lg shadow-amber-500/10 select-none ${
-            isAutoPlayPaused ? 'border-amber-400/40 opacity-90' : 'animate-pulse'
-          }`}
-        >
-          <div className="flex items-center gap-2.5 text-xs font-black text-amber-300 uppercase tracking-wider">
-            <span className="text-base">{isAutoPlayPaused ? '⏸️' : '🤖'}</span>
-            <span>
-              {isAutoPlayPaused
-                ? 'AUTO-PLAY PAUSED • ALL TURNS SUSPENDED'
-                : 'AUTO-PLAY ACTIVE • HANDS-FREE SPECTATOR MODE'}
-            </span>
-          </div>
-          <div className="flex items-center gap-3">
-            <span className="text-[11px] font-semibold text-amber-200/90 hidden sm:inline">
-              Speed: <strong className="uppercase text-amber-300">{speed}</strong> &bull;{' '}
-              {isAutoPlayPaused ? 'Turns suspended' : 'AI is auto-rolling & moving'}
-            </span>
-            <button
-              onClick={handleTogglePauseAutoPlay}
-              className="px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider bg-amber-500/30 hover:bg-amber-500/50 text-amber-200 border border-amber-400/60 transition-all cursor-pointer"
-            >
-              {isAutoPlayPaused ? '▶️ Resume Auto-Play' : '⏸ Pause Auto-Play'}
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Dynamic Turn Instruction Banner */}
       <div
         className="w-full py-2.5 px-3.5 sm:px-5 rounded-2xl flex items-center justify-between shadow-lg border bg-slate-900 transition-all"
@@ -770,18 +785,6 @@ export const LudoGame: React.FC<LudoGameProps> = ({
             <div className="text-xs sm:text-sm font-black uppercase tracking-wider text-white flex items-center gap-1.5 flex-wrap">
               <span>{activePlayer?.config.name}'s Turn</span>
               <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
-              {isAutoPlay && !isOnline && (
-                <span
-                  className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border flex items-center gap-1 ${
-                    isAutoPlayPaused
-                      ? 'bg-amber-500/10 text-amber-400/80 border-amber-500/30'
-                      : 'bg-amber-500/20 text-amber-300 border-amber-500/40 animate-pulse'
-                  }`}
-                >
-                  <Sparkles className="w-3 h-3 text-amber-400" />
-                  {isAutoPlayPaused ? 'Auto-Play Paused' : 'Auto-Play Active'}
-                </span>
-              )}
             </div>
             <p className="text-[11px] sm:text-xs font-semibold text-slate-300">
               {isOnline && !isMyOnlineTurn
@@ -790,10 +793,6 @@ export const LudoGame: React.FC<LudoGameProps> = ({
                 ? '🎲 It is your turn! Tap the dice to roll!'
                 : isOnline && isMyOnlineTurn && hasRolled && validMoves.length > 0
                 ? '👉 Tap your highlighted pawn to make your move!'
-                : isAutoPlay && isAutoPlayPaused
-                ? '⏸️ Auto-Play is paused. All turns suspended. Click Resume to continue.'
-                : isAutoPlay
-                ? '🤖 AI is analyzing board and executing turns automatically (Spectator Mode)'
                 : isAnimatingMove
                 ? '⚡ Moving pawn...'
                 : !hasRolled
@@ -861,54 +860,38 @@ export const LudoGame: React.FC<LudoGameProps> = ({
             <span className="text-[11px] font-extrabold uppercase tracking-widest text-slate-400">
               Dice Roller
             </span>
-            <Dice3D
-              value={diceValue}
-              isRolling={isRolling}
-              canRoll={!isRolling && !hasRolled && !isAnimatingMove && !isAutomatedTurn}
-              activeColor={activePlayer?.config.color || 'red'}
-              onRoll={handleRollDice}
-              size={60}
-              showButton={false}
-            />
-            {isAutoPlay ? (
-              <div className="w-full flex flex-col gap-2">
-                {isAutoPlayPaused ? (
-                  <div className="w-full py-2.5 px-3 rounded-2xl bg-amber-950/80 border border-amber-500/50 text-center text-xs font-bold text-amber-200 flex items-center justify-center gap-2 shadow-inner">
-                    <span>⏸️ Auto-Play Suspended (Paused)</span>
-                  </div>
-                ) : (
-                  <div className="w-full py-2.5 px-3 rounded-2xl bg-amber-950/80 border border-amber-500/50 text-center text-xs font-bold text-amber-200 flex items-center justify-center gap-2 shadow-inner">
-                    <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
-                    <span>🤖 AI Playing ({activePlayer?.config.name})...</span>
-                  </div>
-                )}
-                {!isNative && (
-                  <div className="flex gap-1.5 w-full">
-                    <button
-                      onClick={handleTogglePauseAutoPlay}
-                      className="flex-1 py-2 px-2.5 rounded-xl bg-amber-800/80 hover:bg-amber-700 text-amber-100 text-[11px] font-black border border-amber-600/70 transition-all cursor-pointer flex items-center justify-center gap-1 shadow-md"
-                    >
-                      <span>{isAutoPlayPaused ? '▶️ Resume Auto-Play' : '⏸ Pause Auto-Play'}</span>
-                    </button>
-                    <button
-                      onClick={handleToggleAutoPlay}
-                      className="py-2 px-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-[11px] font-bold border border-slate-700 transition-all cursor-pointer"
-                      title="Turn Off Auto-Play Mode"
-                    >
-                      Exit
-                    </button>
-                  </div>
-                )}
-              </div>
-            ) : isOnline && !isMyOnlineTurn ? (
+            <div
+              onPointerDown={handleRollPointerDown}
+              onPointerUp={handleRollPointerUp}
+              onPointerCancel={handleRollPointerCancel}
+              onContextMenu={(e) => e.preventDefault()}
+              className="touch-none select-none"
+            >
+              <Dice3D
+                value={diceValue}
+                isRolling={isRolling}
+                canRoll={!isRolling && !hasRolled && !isAnimatingMove && !isAutomatedTurn && (!isOnline || isMyOnlineTurn)}
+                activeColor={activePlayer?.config.color || 'red'}
+                onRoll={() => {}}
+                size={60}
+                showButton={false}
+              />
+            </div>
+            {isOnline && !isMyOnlineTurn ? (
               <div className="w-full py-2.5 px-3 rounded-2xl bg-slate-800/90 border border-slate-700 text-center text-xs font-bold text-slate-300 flex items-center justify-center gap-2 shadow-inner">
                 <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
                 <span>⏳ WAITING FOR {activePlayer?.config.name.toUpperCase()}...</span>
               </div>
             ) : !hasRolled && !isRolling && !isAnimatingMove && !isAutomatedTurn ? (
               <button
-                onClick={() => handleRollDice(false)}
-                className="w-full py-2.5 px-4 rounded-2xl text-white font-black text-xs sm:text-sm uppercase tracking-wider shadow-xl hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-2 border border-white/20 animate-pulse cursor-pointer"
+                onPointerDown={handleRollPointerDown}
+                onPointerUp={handleRollPointerUp}
+                onPointerCancel={handleRollPointerCancel}
+                onKeyDown={handleRollKeyDown}
+                onKeyUp={handleRollKeyUp}
+                onClick={handleRollClick}
+                onContextMenu={(e) => e.preventDefault()}
+                className="w-full py-2.5 px-4 rounded-2xl text-white font-black text-xs sm:text-sm uppercase tracking-wider shadow-xl hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-2 border border-white/20 animate-pulse cursor-pointer select-none touch-none"
                 style={{
                   background: `linear-gradient(135deg, ${activeColorInfo.primary}, ${activeColorInfo.dark})`,
                   boxShadow: `0 6px 20px ${activeColorInfo.primary}60`,
@@ -921,40 +904,6 @@ export const LudoGame: React.FC<LudoGameProps> = ({
                 Rolled: <span className="text-amber-400 font-black text-base ml-1">{diceValue}</span>
               </div>
             ) : null}
-
-            {/* Laptop Controls: Quick Auto-Play & Speed Bar */}
-            {!isNative && (
-              <div className="w-full flex flex-col gap-2 pt-2 border-t border-slate-800/80">
-                {!isAutoPlay && (
-                  <button
-                    onClick={handleToggleAutoPlay}
-                    className="w-full py-1.5 px-3 rounded-xl bg-amber-950/50 hover:bg-amber-900/60 text-amber-300 hover:text-amber-100 text-xs font-bold border border-amber-800/60 hover:border-amber-600 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-                  >
-                    <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                    <span>Start Auto-Play</span>
-                  </button>
-                )}
-
-                <div className="w-full flex items-center justify-between gap-1">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Speed:</span>
-                  <div className="flex gap-1">
-                    {(['normal', 'fast', 'turbo'] as AnimationSpeed[]).map((spd) => (
-                      <button
-                        key={spd}
-                        onClick={() => setSpeed(spd)}
-                        className={`px-2 py-0.5 rounded-lg text-[10px] font-black uppercase transition-all border cursor-pointer ${
-                          speed === spd
-                            ? 'bg-amber-500 text-slate-950 border-amber-400 shadow font-black'
-                            : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-slate-200'
-                        }`}
-                      >
-                        {spd === 'turbo' ? '⚡ Turbo' : spd === 'fast' ? '⏩ Fast' : 'Normal'}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
         </div>
       </div>
@@ -976,8 +925,6 @@ export const LudoGame: React.FC<LudoGameProps> = ({
           rankings={rankings}
           onRematch={handleRestart}
           onHome={handleHome}
-          isAutoPlay={isAutoPlay}
-          onToggleAutoPlay={!isNative ? handleToggleAutoPlay : undefined}
         />
       )}
 

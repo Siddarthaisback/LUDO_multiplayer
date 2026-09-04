@@ -324,7 +324,7 @@ describe('OnlineLudoController & Turn Authority', () => {
     );
     expect(onRemoteRoll).not.toHaveBeenCalled();
 
-    // 2. Legitimate sender sends ROLL_REQUEST -> MUST BE ACCEPTED
+    // 2. Legitimate sender sends ROLL_REQUEST without forceSix -> defaults to false
     hostTransportHandler(
       {
         type: 'ROLL_REQUEST',
@@ -335,8 +335,61 @@ describe('OnlineLudoController & Turn Authority', () => {
       'peer-guest-1'
     );
     expect(onRemoteRoll).toHaveBeenCalledTimes(1);
+    expect(onRemoteRoll).toHaveBeenCalledWith(0, 1, false);
+
+    // Reset in-flight by broadcasting snapshot
+    hostController.broadcastSnapshot({
+      ...hostSnapshot,
+      hasRolled: false,
+    });
+
+    // 2b. Legitimate sender sends ROLL_REQUEST with forceSix: true
+    hostTransportHandler(
+      {
+        type: 'ROLL_REQUEST',
+        matchId: 'match-01',
+        seatIndex: 1,
+        forceSix: true,
+        timestamp: Date.now(),
+      },
+      'peer-guest-1'
+    );
+    expect(onRemoteRoll).toHaveBeenCalledTimes(2);
+    expect(onRemoteRoll).toHaveBeenLastCalledWith(0, 1, true);
+
+    // Reset in-flight by broadcasting snapshot
+    hostController.broadcastSnapshot({
+      ...hostSnapshot,
+      hasRolled: false,
+    });
+
+    // 2c. Malformed forceSix (non-boolean) -> MUST BE REJECTED
+    hostTransportHandler(
+      {
+        type: 'ROLL_REQUEST',
+        matchId: 'match-01',
+        seatIndex: 1,
+        forceSix: 'invalid' as any,
+        timestamp: Date.now(),
+      },
+      'peer-guest-1'
+    );
+    expect(onRemoteRoll).toHaveBeenCalledTimes(2); // Not called, rejected!
 
     // 3. Immediate duplicate ROLL_REQUEST while in-flight -> MUST BE DROPPED
+    // Set in-flight by valid call:
+    hostTransportHandler(
+      {
+        type: 'ROLL_REQUEST',
+        matchId: 'match-01',
+        seatIndex: 1,
+        forceSix: false,
+        timestamp: Date.now(),
+      },
+      'peer-guest-1'
+    );
+    expect(onRemoteRoll).toHaveBeenCalledTimes(3);
+
     hostTransportHandler(
       {
         type: 'ROLL_REQUEST',
@@ -346,7 +399,7 @@ describe('OnlineLudoController & Turn Authority', () => {
       },
       'peer-guest-1'
     );
-    expect(onRemoteRoll).toHaveBeenCalledTimes(1); // Still 1, dropped!
+    expect(onRemoteRoll).toHaveBeenCalledTimes(3); // Still 3, dropped!
 
     // Reset in-flight by broadcasting snapshot
     hostController.broadcastSnapshot({

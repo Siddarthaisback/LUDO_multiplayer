@@ -13,7 +13,7 @@ interface GameSetupProps {
   gameType: TaasGameId;
   initialPlayers?: PlayerConfig[];
   onBack: () => void;
-  onStartGame: (players: PlayerConfig[], options?: any, isAutoPlay?: boolean) => void;
+  onStartGame: (players: PlayerConfig[], options?: any) => void;
 }
 
 const GAME_METADATA: Record<TaasGameId, {
@@ -133,7 +133,7 @@ export const GameSetup: React.FC<GameSetupProps> = ({
     });
   };
 
-  const handleStart = (autoPlayMode = false) => {
+  const handleStart = () => {
     let configuredPlayers: PlayerConfig[] = [];
 
     if (gameType === 'ludo' && playerCount === 2) {
@@ -160,7 +160,7 @@ export const GameSetup: React.FC<GameSetupProps> = ({
         extraTurnOnSix: true,
         enablePowerUps,
       };
-      onStartGame(configuredPlayers, options, autoPlayMode);
+      onStartGame(configuredPlayers, options);
     } else if (gameType === 'ludo') {
       const options: LudoGameOptions = {
         requireSixToStart: true,
@@ -169,11 +169,11 @@ export const GameSetup: React.FC<GameSetupProps> = ({
         bonusTurnOnHome: true,
         maxConsecutiveSixes: 3,
       };
-      onStartGame(configuredPlayers, options, autoPlayMode);
+      onStartGame(configuredPlayers, options);
     } else if (gameType === 'callbreak') {
-      onStartGame(configuredPlayers, { roundCount: callBreakRounds }, autoPlayMode);
+      onStartGame(configuredPlayers, { roundCount: callBreakRounds });
     } else {
-      onStartGame(configuredPlayers, undefined, autoPlayMode);
+      onStartGame(configuredPlayers, undefined);
     }
   };
 
@@ -455,24 +455,14 @@ export const GameSetup: React.FC<GameSetupProps> = ({
       )}
 
       {/* Start Game Action Buttons */}
-      <div className="flex flex-col sm:flex-row items-center gap-3">
+      <div className="flex items-center gap-3">
         <button
-          onClick={() => handleStart(false)}
+          onClick={handleStart}
           className="flex-1 w-full py-4 px-6 rounded-2xl font-black text-base text-slate-950 bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-300 hover:to-yellow-300 shadow-xl hover:shadow-amber-500/25 transition-all flex items-center justify-center gap-2.5 active:scale-98 cursor-pointer"
         >
           <Play className="w-5 h-5 fill-slate-950" />
           <span>Enter Play &bull; Start Match</span>
         </button>
-
-        {!isNative && gameType === 'ludo' && (
-          <button
-            onClick={() => handleStart(true)}
-            className="w-full sm:w-auto py-4 px-6 rounded-2xl font-black text-sm bg-amber-950/80 hover:bg-amber-900 text-amber-200 border-2 border-amber-500/60 hover:border-amber-400 shadow-xl transition-all flex items-center justify-center gap-2 active:scale-98 cursor-pointer"
-          >
-            <Sparkles className="w-5 h-5 text-amber-400" />
-            <span>Auto-Play (Spectator)</span>
-          </button>
-        )}
       </div>
     </div>
   );

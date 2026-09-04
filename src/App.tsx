@@ -55,20 +55,8 @@ function getInitialRoomCode(): string {
   return '';
 }
 
-function isAutoPlayRequested(): boolean {
-  if (isNativeBuild || (typeof window !== 'undefined' && Capacitor.isNativePlatform())) return false;
-  if (typeof window !== 'undefined') {
-    const params = new URLSearchParams(window.location.search);
-    return params.get('autoplay') === 'true' || params.get('mode') === 'autoplay';
-  }
-  return false;
-}
-
 function getInitialScreen(): AppScreen {
   if (isNativeBuild || (typeof window !== 'undefined' && Capacitor.isNativePlatform())) {
-    return 'ludo';
-  }
-  if (isAutoPlayRequested()) {
     return 'ludo';
   }
   if (typeof window !== 'undefined') {
@@ -82,12 +70,11 @@ function getInitialScreen(): AppScreen {
 
 export function App() {
   const isNative = isNativeBuild || (typeof window !== 'undefined' && Capacitor.isNativePlatform());
-  const [ludoInitialAutoPlay, setLudoInitialAutoPlay] = useState<boolean>(isAutoPlayRequested);
   const [showMultiplayerModal, setShowMultiplayerModal] = useState<boolean>(() => Boolean(getInitialRoomCode()));
   const [multiplayerSession, setMultiplayerSession] = useState<MultiplayerSession | null>(null);
   const [screen, setScreen] = useState<AppScreen>(getInitialScreen);
   const [setupGameId, setSetupGameId] = useState<TaasGameId | null>(() => {
-    if (isAutoPlayRequested() || getInitialRoomCode()) return null;
+    if (getInitialRoomCode()) return null;
     const initial = getInitialScreen();
     return initial === 'ludo' ? 'ludo' : null;
   });
@@ -117,29 +104,20 @@ export function App() {
     setSetupGameId(gameId);
   };
 
-  const handleLaunchLudoAutoPlay = () => {
-    setLudoInitialAutoPlay(true);
-    setScreen('ludo');
-    setSetupGameId(null);
-    setMatchKey((prev) => prev + 1);
-  };
-
   const handleStartOnlineMatch = (session: MultiplayerSession, initialSnapshot: GameSnapshot) => {
     onlineLudoController.initSession(session, initialSnapshot);
     setMultiplayerSession(session);
     setPlayers(session.players);
     setLudoOptions(session.options);
-    setLudoInitialAutoPlay(false);
     setShowMultiplayerModal(false);
     setScreen('ludo');
     setSetupGameId(null);
     setMatchKey((prev) => prev + 1);
   };
 
-  const handleStartGameFromSetup = (configuredPlayers: PlayerConfig[], options?: any, isAutoPlayLaunch?: boolean) => {
+  const handleStartGameFromSetup = (configuredPlayers: PlayerConfig[], options?: any) => {
     setPlayers(configuredPlayers);
     if (setupGameId === 'ludo') {
-      setLudoInitialAutoPlay(Boolean(isAutoPlayLaunch));
       if (options) setLudoOptions(options);
     } else if (setupGameId === 'snakes' && options) {
       setSnakesOptions(options);
@@ -152,7 +130,6 @@ export function App() {
   };
 
   const handleHome = () => {
-    setLudoInitialAutoPlay(false);
     if (multiplayerSession) {
       onlineLudoController.endSession();
       setMultiplayerSession(null);
@@ -225,7 +202,6 @@ export function App() {
             {screen === 'menu' && !isNative && (
               <TaasArenaHub
                 onSelectGame={handleSelectGame}
-                onLaunchLudoAutoPlay={handleLaunchLudoAutoPlay}
                 onOpenOnlineMultiplayer={() => setShowMultiplayerModal(true)}
               />
             )}
@@ -283,7 +259,6 @@ export function App() {
                 options={ludoOptions}
                 onHome={handleHome}
                 onOpenSetup={handleOpenSetup}
-                initialAutoPlay={ludoInitialAutoPlay}
                 multiplayerSession={multiplayerSession}
               />
             )}
