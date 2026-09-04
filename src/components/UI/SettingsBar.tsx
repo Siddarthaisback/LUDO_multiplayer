@@ -54,20 +54,20 @@ export const SettingsBar: React.FC<SettingsBarProps> = ({
   return (
     <>
       {/* ── Compact Top Bar (Home + Title on Left, Settings on Right) ── */}
-      <div className="flex items-center justify-between gap-3 px-3 sm:px-4 py-2 bg-gradient-to-r from-slate-900/95 via-blue-950/90 to-slate-900/95 border-2 border-amber-400/30 rounded-2xl shadow-xl select-none">
+      <div className="flex items-center justify-between gap-3 px-3 sm:px-4 py-2 bg-[#0f1a36] border border-[#294376] rounded-xl shadow-[0_8px_20px_rgba(0,0,0,0.32),inset_0_1px_0_rgba(255,255,255,0.06)] select-none">
         {/* Left: Home Navigation & Game Title */}
         <div className="flex items-center gap-2.5">
           <button
             onClick={onHome}
             title="Return to Main Hub / Lobby"
-            className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700/90 text-slate-300 hover:text-white transition-all active:scale-95 flex items-center gap-1.5 text-xs font-bold border border-slate-700/50"
+            className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-lg bg-[#18294d] hover:bg-[#20365f] text-[#eef3ff] transition-colors duration-150 flex items-center gap-1.5 text-xs font-bold border border-[#355286]"
           >
             <Home className="w-3.5 h-3.5 text-amber-400" />
             <span className="hidden sm:inline">Hub</span>
           </button>
 
           {gameTitle && (
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-950/60 border border-slate-800 text-[11px] sm:text-xs font-black text-amber-400/95 uppercase tracking-wider shadow-inner">
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#0a1226] border border-[#223762] text-[11px] sm:text-xs font-bold text-[#f6d77b] uppercase tracking-wide">
               <span>{gameTitle}</span>
             </div>
           )}
@@ -79,10 +79,10 @@ export const SettingsBar: React.FC<SettingsBarProps> = ({
             <button
               onClick={onToggleAutoPlay}
               title={isAutoPlay ? 'Auto-Play is Active (Click to Pause)' : 'Click to Enable Auto-Play'}
-              className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-black transition-all active:scale-95 flex items-center gap-1.5 border cursor-pointer ${
+              className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-bold transition-colors duration-150 flex items-center gap-1.5 border cursor-pointer ${
                 isAutoPlay
-                  ? 'bg-purple-600/30 text-purple-300 border-purple-500 shadow-md animate-pulse'
-                  : 'bg-slate-800/80 hover:bg-purple-900/40 text-slate-300 hover:text-purple-200 border-slate-700'
+                  ? 'bg-purple-600/30 text-purple-200 border-purple-400 shadow-md'
+                  : 'bg-[#18294d] hover:bg-[#20365f] text-[#eef3ff] border-[#355286]'
               }`}
             >
               <Sparkles className="w-3.5 h-3.5 text-purple-400" />
@@ -94,9 +94,9 @@ export const SettingsBar: React.FC<SettingsBarProps> = ({
           <button
             onClick={() => setShowSettingsModal(true)}
             title="Game Controls & Match Settings"
-            className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-500/20 to-indigo-500/20 hover:from-amber-500/30 hover:to-indigo-500/30 text-amber-300 hover:text-white transition-all active:scale-95 flex items-center gap-1.5 text-xs font-black border border-amber-500/30 shadow-sm cursor-pointer"
+            className="px-3 py-1.5 rounded-lg bg-[#18294d] hover:bg-[#20365f] text-[#eef3ff] transition-colors duration-150 flex items-center gap-1.5 text-xs font-bold border border-[#355286] cursor-pointer"
           >
-            <Settings className="w-4 h-4 text-amber-400 animate-[spin_12s_linear_infinite]" />
+            <Settings className="w-4 h-4 text-amber-400" />
             <span className="hidden sm:inline">Settings</span>
           </button>
         </div>

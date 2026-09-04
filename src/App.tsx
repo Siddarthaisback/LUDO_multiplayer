@@ -150,15 +150,12 @@ export function App() {
   };
 
   return (
-    <main className="min-h-screen bg-[#0a1128] text-slate-100 flex flex-col justify-between selection:bg-amber-500 selection:text-slate-950">
-      {/* Cheerful Royal Blue Game Arena Background */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_#1e3a8a_0%,_#0f172a_55%,_#080e1e_100%)]" />
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[450px] bg-sky-400/10 rounded-full blur-3xl pointer-events-none" />
-      </div>
+    <main className="min-h-screen bg-[#060d1d] bg-[radial-gradient(circle_at_50%_12%,#172c58_0%,#0b1731_42%,#060d1d_100%)] text-slate-100 flex flex-col justify-between selection:bg-amber-500 selection:text-slate-950 relative">
+      {/* Subtle Game Room Backdrop Pattern */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0 opacity-[0.03] bg-[radial-gradient(#fff_1px,transparent_1px)] [background-size:24px_24px]" />
 
       {/* Header Bar */}
-      <header className="relative z-10 border-b border-blue-900/60 bg-[#0c152e]/90 backdrop-blur-md px-4 sm:px-6 py-3 flex items-center justify-between">
+      <header className="relative z-10 border-b border-[#294376] bg-[#0c162e]/95 px-4 sm:px-6 py-3 flex items-center justify-between shadow-sm">
         <button
           onClick={handleHome}
           className="flex items-center gap-2.5 text-left group transition-all cursor-pointer"
