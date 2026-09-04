@@ -772,46 +772,6 @@ export const LudoGame: React.FC<LudoGameProps> = ({
         </div>
       )}
 
-      {/* Dynamic Turn Instruction Banner */}
-      <div
-        className="w-full py-2.5 px-3.5 sm:px-5 rounded-2xl flex items-center justify-between shadow-lg border bg-slate-900 transition-all"
-        style={{
-          borderColor: activeColorInfo.primary,
-        }}
-      >
-        <div className="flex items-center gap-2.5 sm:gap-3.5">
-          <span className="text-2xl sm:text-3xl">{activePlayer?.config.avatar}</span>
-          <div>
-            <div className="text-xs sm:text-sm font-black uppercase tracking-wider text-white flex items-center gap-1.5 flex-wrap">
-              <span>{activePlayer?.config.name}'s Turn</span>
-              <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
-            </div>
-            <p className="text-[11px] sm:text-xs font-semibold text-slate-300">
-              {isOnline && !isMyOnlineTurn
-                ? `⏳ Waiting for ${activePlayer?.config.name} to roll or move...`
-                : isOnline && isMyOnlineTurn && !hasRolled
-                ? '🎲 It is your turn! Tap the dice to roll!'
-                : isOnline && isMyOnlineTurn && hasRolled && validMoves.length > 0
-                ? '👉 Tap your highlighted pawn to make your move!'
-                : isAnimatingMove
-                ? '⚡ Moving pawn...'
-                : !hasRolled
-                ? '🎲 Tap the dice to roll!'
-                : validMoves.length > 0
-                ? '👉 Tap or hover a highlighted bouncing pawn to move!'
-                : '❌ No legal moves with this roll.'}
-            </p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {consecutiveSixes > 0 && (
-            <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-amber-500/30 text-amber-300 border border-amber-400">
-              🔥 6s: {consecutiveSixes}/3
-            </span>
-          )}
-        </div>
-      </div>
 
       {/* Main Game Layout Grid */}
       <div className={`grid ${isNative ? 'grid-cols-1 max-w-lg mx-auto' : 'grid-cols-1 lg:grid-cols-12'} gap-4 lg:gap-6 items-start w-full`}>
