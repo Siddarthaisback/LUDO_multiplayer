@@ -278,8 +278,8 @@ export const LudoBoard: React.FC<LudoBoardProps> = React.memo(({
           style={{
             left: 0,
             top: 0,
-            width: boardWidth > 0 ? `${boardWidth * 0.072}px` : '7.2%',
-            height: boardWidth > 0 ? `${boardWidth * 0.072}px` : '7.2%',
+            width: 'var(--ludo-token-size, 7.2%)',
+            height: 'var(--ludo-token-size, 7.2%)',
             transform: transformStyle,
             willChange: isMovableToken ? 'transform' : 'auto',
           }}
