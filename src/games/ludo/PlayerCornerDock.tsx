@@ -25,6 +25,31 @@ interface PlayerCornerDockProps {
   onRollClick: () => void;
 }
 
+export function getDockDiceAriaLabel({
+  isRolling,
+  isInteractive,
+  hasRolled,
+  diceValue,
+  isAutomatedTurn,
+  isOnline,
+  isMyOnlineTurn,
+}: {
+  isRolling: boolean;
+  isInteractive: boolean;
+  hasRolled: boolean;
+  diceValue: number;
+  isAutomatedTurn: boolean;
+  isOnline: boolean;
+  isMyOnlineTurn: boolean;
+}): string {
+  if (isRolling) return 'Dice rolling';
+  if (isInteractive) return 'Roll dice (tap or hold)';
+  if (hasRolled) return `Rolled ${diceValue}`;
+  if (isAutomatedTurn) return 'Bot turn in progress';
+  if (isOnline && !isMyOnlineTurn) return 'Waiting for opponent';
+  return 'Dice waiting';
+}
+
 export const PlayerCornerDock: React.FC<PlayerCornerDockProps> = ({
   color,
   corner,
@@ -53,30 +78,41 @@ export const PlayerCornerDock: React.FC<PlayerCornerDockProps> = ({
       <div
         data-testid={`corner-dock-${color}`}
         data-corner={corner}
-        className="h-[58px] sm:h-[64px] lg:h-[72px] w-full min-w-0 rounded-2xl bg-[#1c0f07]/40 border border-[#3b1f10]/30 px-3 flex items-center justify-center text-[11px] text-[#7a4f32] font-semibold select-none"
+        className="h-[64px] sm:h-[72px] lg:h-[76px] w-full min-w-0 rounded-2xl bg-[#1c0f07]/40 border border-[#3b1f10]/30 px-3 flex items-center justify-center text-xs text-[#7a4f32] font-semibold select-none"
       >
         <span>Empty Seat</span>
       </div>
     );
   }
 
-  // Active Player Dock: Contains 3D Dice and Roll Controls
+  // Active Player Dock: Contains 3D Dice (Primary Roll Trigger) and Player Identity
   if (isActive) {
+    const isInteractive = canRoll && !hasRolled && !isRolling && !isAutomatedTurn && (!isOnline || isMyOnlineTurn);
+    const diceAriaLabel = getDockDiceAriaLabel({
+      isRolling,
+      isInteractive,
+      hasRolled,
+      diceValue,
+      isAutomatedTurn,
+      isOnline,
+      isMyOnlineTurn,
+    });
+
     return (
       <div
         data-testid={`corner-dock-${color}`}
         data-corner={corner}
         data-active="true"
-        className="h-[58px] sm:h-[64px] lg:h-[72px] w-full min-w-0 rounded-2xl bg-[#2e190e] border-2 px-2.5 sm:px-3 lg:px-4 flex items-center justify-between shadow-xl select-none transition-all z-20"
+        className="h-[64px] sm:h-[72px] lg:h-[76px] w-full min-w-0 rounded-2xl bg-[#2e190e] border-2 px-2.5 sm:px-3.5 lg:px-4 flex items-center justify-between shadow-xl select-none transition-all z-20"
         style={{
           borderColor: colorInfo.primary,
-          boxShadow: `0 0 20px -2px ${colorInfo.primary}55`,
+          boxShadow: `0 0 24px -2px ${colorInfo.primary}66`,
         }}
       >
         {/* Player Avatar & Identity */}
-        <div className="flex items-center gap-2 min-w-0 flex-1 mr-2">
+        <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1 mr-1.5 sm:mr-2">
           <div
-            className="w-8 h-8 rounded-xl flex items-center justify-center text-base shadow-inner border border-white/30 shrink-0 relative"
+            className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center text-base sm:text-lg shadow-inner border border-white/30 shrink-0 relative"
             style={{ backgroundColor: colorInfo.primary }}
           >
             {playerState.config.avatar}
@@ -84,27 +120,49 @@ export const PlayerCornerDock: React.FC<PlayerCornerDockProps> = ({
           </div>
           <div className="min-w-0 flex-1">
             <div
-              className="text-xs font-black text-[#f6ead7] truncate block"
+              className="text-xs sm:text-sm font-black text-[#f6ead7] truncate block"
               title={playerState.config.name}
             >
               {playerState.config.name}
             </div>
-            <div className="text-[9px] font-bold uppercase tracking-wider text-emerald-400">
-              Turn
-            </div>
+            {isOnline && !isMyOnlineTurn ? (
+              <div className="text-[11px] sm:text-xs font-bold text-amber-400 flex items-center gap-1 mt-0.5">
+                <span>⏳</span>
+                <span className="truncate">Waiting</span>
+              </div>
+            ) : isAutomatedTurn ? (
+              <div className="text-[11px] sm:text-xs font-bold text-purple-300 flex items-center gap-1 mt-0.5">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse shrink-0" />
+                <span className="truncate">Bot Turn</span>
+              </div>
+            ) : isRolling ? (
+              <div className="text-[11px] sm:text-xs font-bold text-amber-300 flex items-center gap-1.5 mt-0.5">
+                <span className="inline-block w-2 h-2 rounded-full bg-amber-400 animate-ping shrink-0" />
+                <span className="truncate">Rolling...</span>
+              </div>
+            ) : hasRolled ? (
+              <div className="text-[11px] sm:text-xs font-bold text-amber-300 flex items-center gap-1 mt-0.5">
+                <span className="text-[#cdb99d]">Rolled:</span>
+                <span className="text-[#f6ead7] font-black">{diceValue}</span>
+              </div>
+            ) : (
+              <div className="text-[11px] sm:text-xs font-black uppercase tracking-wider text-emerald-400 flex items-center gap-1.5 mt-0.5">
+                <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399] animate-pulse shrink-0" />
+                <span>Turn</span>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Separator */}
-        <div className="h-7 w-[1px] bg-white/10 shrink-0 mx-0.5" />
-
-        {/* Shifting 3D Dice & Roll Trigger / Status */}
-        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-          {/* Interactive 3D Dice in Reserved Clipped Slot */}
-          <div
-            role="button"
-            tabIndex={canRoll && !hasRolled && !isRolling && !isAutomatedTurn && (!isOnline || isMyOnlineTurn) ? 0 : -1}
-            aria-label="Roll Dice"
+        {/* Shifting 3D Dice: The single primary interactive roll trigger (No separate ROLL button) */}
+        <div className="shrink-0 flex items-center">
+          {/* Interactive 3D Die */}
+          <button
+            type="button"
+            data-testid={`dice-button-${color}`}
+            disabled={!isInteractive}
+            aria-label={diceAriaLabel}
+            aria-busy={isRolling}
             onPointerDown={onRollPointerDown}
             onPointerUp={onRollPointerUp}
             onPointerCancel={onRollPointerCancel}
@@ -112,55 +170,23 @@ export const PlayerCornerDock: React.FC<PlayerCornerDockProps> = ({
             onKeyUp={onRollKeyUp}
             onClick={onRollClick}
             onContextMenu={(e) => e.preventDefault()}
-            className="w-[52px] h-[52px] flex items-center justify-center shrink-0 rounded-xl bg-[#1a0e07]/60 border border-white/10 hover:border-amber-400/50 touch-none select-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-400 overflow-hidden shadow-inner transition-colors"
-            title="Tap or Hold to Roll"
+            className={`relative rounded-2xl flex items-center justify-center p-0.5 transition-transform touch-none select-none focus:outline-none focus:ring-2 focus:ring-amber-400 ${
+              isInteractive
+                ? 'cursor-pointer hover:scale-105 active:scale-95'
+                : 'cursor-default'
+            }`}
+            title={isInteractive ? 'Tap or hold to roll' : undefined}
           >
             <Dice3D
               value={diceValue}
               isRolling={isRolling}
-              canRoll={canRoll}
+              canRoll={isInteractive}
               activeColor={color}
               onRoll={() => {}}
-              size={24}
+              size={44}
               showButton={false}
             />
-          </div>
-
-          {/* Action Button or State Label */}
-          {isOnline && !isMyOnlineTurn ? (
-            <span className="text-[10px] font-bold text-[#cdb99d] px-2 py-1 rounded-lg bg-[#1c0f07] border border-[#4a2b16] shrink-0">
-              ⏳ Wait
-            </span>
-          ) : isAutomatedTurn ? (
-            <span className="text-[10px] font-bold text-purple-300 px-2 py-1 rounded-lg bg-purple-950/80 border border-purple-700/60 animate-pulse shrink-0">
-              🤖 Bot Roll
-            </span>
-          ) : isRolling ? (
-            <span className="text-[10px] font-bold text-amber-300 px-2 py-1 rounded-lg bg-amber-950/80 border border-amber-700/60 animate-pulse shrink-0">
-              Rolling...
-            </span>
-          ) : !hasRolled && canRoll ? (
-            <button
-              onPointerDown={onRollPointerDown}
-              onPointerUp={onRollPointerUp}
-              onPointerCancel={onRollPointerCancel}
-              onKeyDown={onRollKeyDown}
-              onKeyUp={onRollKeyUp}
-              onClick={onRollClick}
-              onContextMenu={(e) => e.preventDefault()}
-              className="py-1.5 px-2.5 sm:px-3.5 rounded-xl text-white font-black text-xs uppercase tracking-wider shadow-md active:scale-95 transition-all flex items-center justify-center gap-1 border border-white/30 cursor-pointer select-none touch-none hover:brightness-110 shrink-0"
-              style={{
-                background: `linear-gradient(180deg, ${colorInfo.light || colorInfo.primary} 0%, ${colorInfo.primary} 60%, ${colorInfo.dark} 100%)`,
-              }}
-            >
-              <span>ROLL</span>
-            </button>
-          ) : hasRolled ? (
-            <div className="py-1 px-2 rounded-lg bg-[#1c0f07] border border-[#4a2b16] text-center shadow-inner shrink-0">
-              <span className="text-[10px] text-[#cdb99d]">Rolled: </span>
-              <span className="text-[#d6a85f] font-black text-sm">{diceValue}</span>
-            </div>
-          ) : null}
+          </button>
         </div>
       </div>
     );
@@ -172,30 +198,30 @@ export const PlayerCornerDock: React.FC<PlayerCornerDockProps> = ({
       data-testid={`corner-dock-${color}`}
       data-corner={corner}
       data-active="false"
-      className="h-[58px] sm:h-[64px] lg:h-[72px] w-full min-w-0 rounded-2xl bg-[#241309]/90 border border-[#4d2c16] px-2.5 sm:px-3 lg:px-4 flex items-center justify-between shadow-md select-none transition-all opacity-85 hover:opacity-100"
+      className="h-[64px] sm:h-[72px] lg:h-[76px] w-full min-w-0 rounded-2xl bg-[#241309]/90 border border-[#4d2c16] px-2.5 sm:px-3.5 lg:px-4 flex items-center justify-between shadow-md select-none transition-all opacity-85 hover:opacity-100"
     >
-      <div className="flex items-center gap-2 min-w-0 flex-1 mr-2">
+      <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1 mr-1.5 sm:mr-2">
         <div
-          className="w-8 h-8 rounded-xl flex items-center justify-center text-base shadow-inner border border-white/20 shrink-0"
+          className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center text-base sm:text-lg shadow-inner border border-white/20 shrink-0"
           style={{ backgroundColor: `${colorInfo.primary}33` }}
         >
           {playerState.config.avatar}
         </div>
         <div className="min-w-0 flex-1">
           <div
-            className="text-xs font-bold text-[#f6ead7] truncate block"
+            className="text-xs sm:text-sm font-bold text-[#f6ead7] truncate block"
             title={playerState.config.name}
           >
             {playerState.config.name}
           </div>
-          <div className="text-[10px] text-[#cdb99d] flex items-center gap-1 font-medium">
+          <div className="text-xs text-[#cdb99d] flex items-center gap-1.5 font-medium mt-0.5">
             <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: colorInfo.primary }} />
             <span>{playerState.tokensHome}/4 Home</span>
           </div>
         </div>
       </div>
       {playerState.rank && (
-        <span className="text-[10px] font-black text-amber-300 px-1.5 py-0.5 rounded-md bg-amber-950/80 border border-amber-800/60 shrink-0">
+        <span className="text-xs font-black text-amber-300 px-2 py-0.5 rounded-md bg-amber-950/80 border border-amber-800/60 shrink-0">
           #{playerState.rank}
         </span>
       )}

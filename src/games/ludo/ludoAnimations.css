@@ -118,13 +118,15 @@
 .ludo-stage-grid {
   display: grid;
   width: 100%;
-  max-width: 1680px;
+  max-width: 480px;
   margin-left: auto;
   margin-right: auto;
   align-items: center;
   justify-content: center;
-  gap: 0.75rem;
+  align-content: center;
+  gap: 0.5rem;
   grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto auto auto;
   grid-template-areas:
     "dock-red dock-green"
     "board board"
@@ -133,6 +135,7 @@
 
 @media (min-width: 1024px) {
   .ludo-stage-grid {
+    max-width: 1680px;
     gap: 1.25rem;
     grid-template-columns: minmax(min(240px, 100%), 290px) auto minmax(min(240px, 100%), 290px);
     grid-template-rows: 1fr 1fr;
