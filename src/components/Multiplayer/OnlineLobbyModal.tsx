@@ -178,17 +178,55 @@ export const OnlineLobbyModal: React.FC<OnlineLobbyModalProps> = ({
     lobbyController.startMatch(defaultOptions);
   };
 
+  const getInviteUrl = () => {
+    const publicAppUrl = (import.meta.env.VITE_PUBLIC_APP_URL || '').trim();
+    if (publicAppUrl) {
+      const base = publicAppUrl.replace(/\/+$/, '');
+      return `${base}/?game=ludo&room=${encodeURIComponent(lobbyState.roomCode)}`;
+    }
+    if (typeof window !== 'undefined') {
+      const origin = window.location.origin;
+      const isLocalOrCapacitor =
+        origin.includes('localhost') ||
+        origin.includes('127.0.0.1') ||
+        origin.startsWith('capacitor://');
+
+      if (isLocalOrCapacitor) {
+        return `https://royal-ludo.vercel.app/?game=ludo&room=${encodeURIComponent(lobbyState.roomCode)}`;
+      }
+      return `${origin}${window.location.pathname}?game=ludo&room=${encodeURIComponent(lobbyState.roomCode)}`;
+    }
+    return `https://royal-ludo.vercel.app/?game=ludo&room=${encodeURIComponent(lobbyState.roomCode)}`;
+  };
+
   const handleCopyCode = () => {
-    if (lobbyState.roomCode) {
+    if (lobbyState.roomCode && navigator.clipboard?.writeText) {
       navigator.clipboard.writeText(lobbyState.roomCode);
       setCopiedCode(true);
       setTimeout(() => setCopiedCode(false), 2000);
     }
   };
 
-  const handleCopyLink = () => {
-    if (typeof window !== 'undefined' && lobbyState.roomCode) {
-      const url = `${window.location.origin}${window.location.pathname}?room=${lobbyState.roomCode}`;
+  const handleCopyLink = async () => {
+    if (!lobbyState.roomCode) return;
+    const url = getInviteUrl();
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'Join my Royal Ludo Game!',
+          text: `Join my Royal Ludo room: ${lobbyState.roomCode}`,
+          url,
+        });
+        setCopiedLink(true);
+        setTimeout(() => setCopiedLink(false), 2000);
+        return;
+      } catch (err: any) {
+        if (err?.name === 'AbortError') return;
+      }
+    }
+
+    if (navigator.clipboard?.writeText) {
       navigator.clipboard.writeText(url);
       setCopiedLink(true);
       setTimeout(() => setCopiedLink(false), 2000);

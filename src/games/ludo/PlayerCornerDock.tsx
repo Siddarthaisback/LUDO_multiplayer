@@ -23,6 +23,7 @@ interface PlayerCornerDockProps {
   onRollKeyDown: (e: React.KeyboardEvent) => void;
   onRollKeyUp: (e: React.KeyboardEvent) => void;
   onRollClick: () => void;
+  onTriggerAutoCapture?: () => void;
 }
 
 export function getDockDiceAriaLabel({
@@ -69,6 +70,7 @@ export const PlayerCornerDock: React.FC<PlayerCornerDockProps> = ({
   onRollKeyDown,
   onRollKeyUp,
   onRollClick,
+  onTriggerAutoCapture,
 }) => {
   const colorInfo = COLOR_MAP[color];
 
@@ -155,7 +157,22 @@ export const PlayerCornerDock: React.FC<PlayerCornerDockProps> = ({
         </div>
 
         {/* Shifting 3D Dice: The single primary interactive roll trigger (No separate ROLL button) */}
-        <div className="shrink-0 flex items-center">
+        <div className="shrink-0 flex items-center relative">
+          {/* Smart Auto-Capture / Distance Assist trigger (Purple circle drawn in diagram) */}
+          {isInteractive && onTriggerAutoCapture && (
+            <button
+              type="button"
+              data-testid={`auto-capture-trigger-${color}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onTriggerAutoCapture();
+              }}
+              title="Smart Auto-Capture / Distance Assist"
+              aria-label="Smart Auto-Capture Assist"
+              className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-purple-500 hover:bg-purple-400 border border-purple-200/80 shadow-[0_0_8px_rgba(168,85,247,0.85)] z-30 cursor-pointer active:scale-125 transition-transform animate-pulse"
+            />
+          )}
+
           {/* Interactive 3D Die */}
           <button
             type="button"

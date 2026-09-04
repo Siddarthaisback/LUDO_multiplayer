@@ -14,6 +14,7 @@ interface GameSetupProps {
   initialPlayers?: PlayerConfig[];
   onBack: () => void;
   onStartGame: (players: PlayerConfig[], options?: any) => void;
+  onOpenOnlineMultiplayer?: () => void;
 }
 
 const GAME_METADATA: Record<TaasGameId, {
@@ -87,6 +88,7 @@ export const GameSetup: React.FC<GameSetupProps> = ({
   initialPlayers,
   onBack,
   onStartGame,
+  onOpenOnlineMultiplayer,
 }) => {
   const meta = GAME_METADATA[gameType] || GAME_METADATA.callbreak;
 
@@ -455,7 +457,17 @@ export const GameSetup: React.FC<GameSetupProps> = ({
       )}
 
       {/* Start Game Action Buttons */}
-      <div className="flex items-center gap-3">
+      <div className="flex flex-col sm:flex-row items-center gap-3">
+        {gameType === 'ludo' && onOpenOnlineMultiplayer && (
+          <button
+            type="button"
+            onClick={onOpenOnlineMultiplayer}
+            className="w-full sm:w-auto px-6 py-4 rounded-2xl font-black text-sm text-cyan-200 bg-cyan-950/80 hover:bg-cyan-900/90 border border-cyan-500/50 shadow-lg hover:shadow-cyan-500/20 transition-all flex items-center justify-center gap-2 active:scale-98 cursor-pointer"
+          >
+            <span>🌐</span>
+            <span>Play Online With Friends</span>
+          </button>
+        )}
         <button
           onClick={handleStart}
           className="flex-1 w-full py-4 px-6 rounded-2xl font-black text-base text-slate-950 bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-300 hover:to-yellow-300 shadow-xl hover:shadow-amber-500/25 transition-all flex items-center justify-center gap-2.5 active:scale-98 cursor-pointer"

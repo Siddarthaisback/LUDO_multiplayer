@@ -270,3 +270,40 @@ export class LudoEngine {
   }
 }
 
+/**
+ * Smart Auto-Capture & Distance Calculator
+ * Scans player tokens against opponent tokens to automatically resolve the exact
+ * roll required to capture an opponent, enter Home, or exit yard.
+ */
+export function calculateSmartAutoCaptureRoll(
+  player: LudoPlayerState,
+  allPlayers: LudoPlayerState[],
+  options?: LudoGameOptions
+): number {
+  // 1. Check rolls 1 to 6: Prioritize ANY roll that captures an opponent pawn
+  for (let r = 1; r <= 6; r++) {
+    const moves = LudoEngine.getValidMoves(player, r, allPlayers, options);
+    if (moves.some((m) => m.capturesOpponent)) {
+      return r;
+    }
+  }
+
+  // 2. Check rolls 1 to 6: If no capture, check if any roll finishes a pawn into Home
+  for (let r = 1; r <= 6; r++) {
+    const moves = LudoEngine.getValidMoves(player, r, allPlayers, options);
+    if (moves.some((m) => m.isHome)) {
+      return r;
+    }
+  }
+
+  // 3. If yard has tokens waiting, return 6 to release a pawn
+  const hasTokensInYard = player.tokens.some((t) => t.step === -1 || t.status === 'yard');
+  if (hasTokensInYard) {
+    return 6;
+  }
+
+  // 4. Fallback: Return 6 for tactical board progression
+  return 6;
+}
+
+

@@ -90,12 +90,12 @@ export type WireMessage =
       code: 'ROOM_FULL' | 'GAME_ALREADY_STARTED' | 'INVALID_CODE' | 'PROTOCOL_MISMATCH' | 'GENERAL';
       message: string;
     }
-  // In-Game Commands
   | {
       type: 'ROLL_REQUEST';
       matchId: string;
       seatIndex: number;
       forceSix?: boolean;
+      desiredRoll?: number;
       timestamp: number;
     }
   | {

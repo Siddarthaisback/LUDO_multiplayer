@@ -184,4 +184,73 @@ describe('PlayerCornerDock Mapping & Turn Shifting Invariants', () => {
     const htmlFallback = renderDock({ canRoll: false, hasRolled: false, isRolling: false });
     expect(htmlFallback).toContain('aria-label="Dice waiting"');
   });
+
+  it('renders purple auto-capture trigger button only when interactive and callback is provided', () => {
+    const basePlayerState: LudoPlayerState = {
+      config: {
+        id: 'p1',
+        name: 'Player 1',
+        color: 'red',
+        type: 'human',
+        avatar: '🔴',
+      },
+      tokens: [],
+      tokensHome: 0,
+      tokensCaptured: 0,
+      tokensLost: 0,
+    };
+
+    // When interactive and callback provided: trigger should be rendered
+    const htmlWithTrigger = renderToStaticMarkup(
+      React.createElement(PlayerCornerDock, {
+        color: 'red',
+        corner: 'top-left',
+        playerState: basePlayerState,
+        isActive: true,
+        diceValue: 6,
+        isRolling: false,
+        canRoll: true,
+        hasRolled: false,
+        isAnimatingMove: false,
+        isAutomatedTurn: false,
+        isOnline: false,
+        isMyOnlineTurn: true,
+        onRollPointerDown: () => {},
+        onRollPointerUp: () => {},
+        onRollPointerCancel: () => {},
+        onRollKeyDown: () => {},
+        onRollKeyUp: () => {},
+        onRollClick: () => {},
+        onTriggerAutoCapture: () => {},
+      })
+    );
+    expect(htmlWithTrigger).toContain('data-testid="auto-capture-trigger-red"');
+    expect(htmlWithTrigger).toContain('bg-purple-500');
+
+    // When already rolled: trigger should NOT be rendered
+    const htmlRolled = renderToStaticMarkup(
+      React.createElement(PlayerCornerDock, {
+        color: 'red',
+        corner: 'top-left',
+        playerState: basePlayerState,
+        isActive: true,
+        diceValue: 6,
+        isRolling: false,
+        canRoll: true,
+        hasRolled: true,
+        isAnimatingMove: false,
+        isAutomatedTurn: false,
+        isOnline: false,
+        isMyOnlineTurn: true,
+        onRollPointerDown: () => {},
+        onRollPointerUp: () => {},
+        onRollPointerCancel: () => {},
+        onRollKeyDown: () => {},
+        onRollKeyUp: () => {},
+        onRollClick: () => {},
+        onTriggerAutoCapture: () => {},
+      })
+    );
+    expect(htmlRolled).not.toContain('data-testid="auto-capture-trigger-red"');
+  });
 });

@@ -194,6 +194,7 @@ export function App() {
             initialPlayers={players}
             onBack={() => setSetupGameId(null)}
             onStartGame={handleStartGameFromSetup}
+            onOpenOnlineMultiplayer={() => setShowMultiplayerModal(true)}
           />
         ) : (
           <React.Suspense
@@ -283,7 +284,7 @@ export function App() {
         )}
 
         {/* Online Multiplayer Lobby Modal */}
-        {showMultiplayerModal && !isNative && (
+        {showMultiplayerModal && (
           <OnlineLobbyModal
             initialRoomCode={getInitialRoomCode()}
             onClose={() => {

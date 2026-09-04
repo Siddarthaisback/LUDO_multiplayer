@@ -3,7 +3,7 @@ import { flushSync } from 'react-dom';
 import { PlayerConfig, PlayerColor } from '../../types/game';
 import { LudoPlayerState, LudoGameOptions, MoveOption } from '../../types/ludo';
 import { LudoBoard } from './LudoBoard';
-import { LudoEngine } from './LudoEngine';
+import { LudoEngine, calculateSmartAutoCaptureRoll } from './LudoEngine';
 import { PlayerCornerDock } from './PlayerCornerDock';
 import { VictoryModal } from '../../components/UI/VictoryModal';
 import './ludoAnimations.css';
@@ -92,7 +92,7 @@ export const LudoGame: React.FC<LudoGameProps> = ({
   const currentMoveSessionRef = useRef<number>(0);
   const rollPressStartTimeRef = useRef<number | null>(null);
   const hasHandledReleaseRef = useRef<boolean>(false);
-  const handleRollDiceRef = useRef<(fromRemote?: boolean, forceSix?: boolean) => void>(() => {});
+  const handleRollDiceRef = useRef<(fromRemote?: boolean, forceSix?: boolean, desiredRoll?: number) => void>(() => {});
   const handleSelectTokenRef = useRef<(tokenId: number, fromRemote?: boolean) => void>(() => {});
 
   // Invalidate any active move transaction or timer on unmount
@@ -110,9 +110,9 @@ export const LudoGame: React.FC<LudoGameProps> = ({
     if (!multiplayerSession) return;
 
     onlineLudoController.setCallbacks({
-      onRemoteRoll: (_val, _seatIndex, forceSix) => {
+      onRemoteRoll: (_val, _seatIndex, forceSix, desiredRoll) => {
         if (multiplayerSession.isHost) {
-          handleRollDiceRef.current(true, Boolean(forceSix));
+          handleRollDiceRef.current(true, Boolean(forceSix), desiredRoll);
         }
       },
       onRemoteMove: (tokenId) => {
@@ -306,13 +306,25 @@ export const LudoGame: React.FC<LudoGameProps> = ({
     }
   };
 
-  // Dice Roll (Secret Hold: >= 500ms forces 6; normal tap produces standard 1-6 RNG)
-  const handleRollDice = (fromRemote: boolean = false, forceSix: boolean = false) => {
+  // Smart Auto-Capture / Distance Assist trigger (Purple circle on active dice container)
+  const handleTriggerAutoCapture = () => {
+    if (isRolling || hasRolled || winner || isAnimatingMove) return;
+    if (isOnline && !isMyOnlineTurn) return;
+
+    const currentPlayer = players[activePlayerIndex];
+    if (!currentPlayer) return;
+
+    const smartRoll = calculateSmartAutoCaptureRoll(currentPlayer, players, options);
+    handleRollDice(false, smartRoll === 6, smartRoll);
+  };
+
+  // Dice Roll (Secret Hold: >= 500ms forces 6; normal tap produces standard 1-6 RNG; desiredRoll overrides if provided)
+  const handleRollDice = (fromRemote: boolean = false, forceSix: boolean = false, desiredRoll?: number) => {
     if (isRolling || hasRolled || winner || isAnimatingMove) return;
     if (isOnline && !fromRemote && !isMyOnlineTurn) return;
 
     if (isOnline && !multiplayerSession?.isHost) {
-      onlineLudoController.requestRoll(activePlayerIndex, forceSix);
+      onlineLudoController.requestRoll(activePlayerIndex, forceSix, desiredRoll);
       return;
     }
 
@@ -321,7 +333,12 @@ export const LudoGame: React.FC<LudoGameProps> = ({
 
     soundEffects.playDiceRoll();
     setIsRolling(true);
-    const roll = forceSix ? 6 : Math.floor(Math.random() * 6) + 1;
+    const roll =
+      typeof desiredRoll === 'number' && Number.isInteger(desiredRoll) && desiredRoll >= 1 && desiredRoll <= 6
+        ? desiredRoll
+        : forceSix
+          ? 6
+          : Math.floor(Math.random() * 6) + 1;
     const rollDuration = DICE_ROLL_DURATION_MS;
 
     if (diceRollTimerRef.current) clearTimeout(diceRollTimerRef.current);
@@ -808,6 +825,7 @@ export const LudoGame: React.FC<LudoGameProps> = ({
             onRollKeyDown={handleRollKeyDown}
             onRollKeyUp={handleRollKeyUp}
             onRollClick={handleRollClick}
+            onTriggerAutoCapture={handleTriggerAutoCapture}
           />
         </div>
 
@@ -832,6 +850,7 @@ export const LudoGame: React.FC<LudoGameProps> = ({
             onRollKeyDown={handleRollKeyDown}
             onRollKeyUp={handleRollKeyUp}
             onRollClick={handleRollClick}
+            onTriggerAutoCapture={handleTriggerAutoCapture}
           />
         </div>
 
@@ -872,6 +891,7 @@ export const LudoGame: React.FC<LudoGameProps> = ({
             onRollKeyDown={handleRollKeyDown}
             onRollKeyUp={handleRollKeyUp}
             onRollClick={handleRollClick}
+            onTriggerAutoCapture={handleTriggerAutoCapture}
           />
         </div>
 
@@ -896,6 +916,7 @@ export const LudoGame: React.FC<LudoGameProps> = ({
             onRollKeyDown={handleRollKeyDown}
             onRollKeyUp={handleRollKeyUp}
             onRollClick={handleRollClick}
+            onTriggerAutoCapture={handleTriggerAutoCapture}
           />
         </div>
       </div>

@@ -2,7 +2,7 @@ import { MultiplayerSession, GameSnapshot, WireMessage } from './protocol';
 import { peerTransport } from './peerService';
 
 export interface OnlineGameCallbacks {
-  onRemoteRoll?: (rollValue: number, playerIndex: number, forceSix?: boolean) => void;
+  onRemoteRoll?: (rollValue: number, playerIndex: number, forceSix?: boolean, desiredRoll?: number) => void;
   onRemoteMove?: (tokenId: number, playerIndex: number) => void;
   onStateSnapshot?: (snapshot: GameSnapshot) => void;
   onHostDisconnected?: (message: string) => void;
@@ -65,7 +65,7 @@ export class OnlineLudoController {
   /**
    * Called when local player clicks Roll Dice
    */
-  public requestRoll(activePlayerIndex: number, forceSix: boolean = false): boolean {
+  public requestRoll(activePlayerIndex: number, forceSix: boolean = false, desiredRoll?: number): boolean {
     if (!this.session) return true;
     if (!this.isMyTurn(activePlayerIndex)) return false;
 
@@ -79,6 +79,7 @@ export class OnlineLudoController {
         matchId: this.session.matchId,
         seatIndex: this.session.mySeatIndex,
         forceSix: Boolean(forceSix),
+        desiredRoll: typeof desiredRoll === 'number' && Number.isInteger(desiredRoll) && desiredRoll >= 1 && desiredRoll <= 6 ? desiredRoll : undefined,
         timestamp: Date.now(),
       });
       return false; // Wait for host to broadcast authoritative roll
@@ -160,10 +161,25 @@ export class OnlineLudoController {
             return;
           }
 
+          // 6. Validate desiredRoll property if present (finite integer 1..6)
+          let validatedDesiredRoll: number | undefined = undefined;
+          if (msg.desiredRoll !== undefined) {
+            if (typeof msg.desiredRoll === 'number' && Number.isInteger(msg.desiredRoll) && msg.desiredRoll >= 1 && msg.desiredRoll <= 6) {
+              validatedDesiredRoll = msg.desiredRoll;
+            } else {
+              console.warn(`[OnlineLudo] Rejected malformed ROLL_REQUEST: desiredRoll must be integer between 1 and 6`);
+              return;
+            }
+          }
+
           // Mark in-flight until snapshot broadcasts
           this.isActionInFlight = true;
           const isForcedSix = typeof msg.forceSix === 'boolean' ? msg.forceSix : false;
-          this.callbacks.onRemoteRoll?.(0, msg.seatIndex, isForcedSix);
+          if (validatedDesiredRoll !== undefined) {
+            this.callbacks.onRemoteRoll?.(0, msg.seatIndex, isForcedSix, validatedDesiredRoll);
+          } else {
+            this.callbacks.onRemoteRoll?.(0, msg.seatIndex, isForcedSix);
+          }
         }
         break;
       }
