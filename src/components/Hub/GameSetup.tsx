@@ -3,7 +3,7 @@ import { PlayerConfig, PlayerColor, BotDifficulty } from '../../types/game';
 import { TaasGameId } from './CardRulesModal';
 import { SnakesBoardTheme, SnakesGameOptions } from '../../types/snakes';
 import { LudoGameOptions } from '../../types/ludo';
-import { DEFAULT_AVATARS, COLOR_MAP, HUMAN_NAME_POOL } from '../../utils/constants';
+import { DEFAULT_AVATARS, COLOR_MAP } from '../../utils/constants';
 import { ArrowLeft, Play, Users, Bot, User, Sparkles } from 'lucide-react';
 import { Capacitor } from '@capacitor/core';
 
@@ -105,12 +105,12 @@ export const GameSetup: React.FC<GameSetupProps> = ({
       return initialPlayers;
     }
     return [
-      { id: 'p1', name: `${HUMAN_NAME_POOL[0]} (You)`, color: 'red', type: 'human', avatar: '🦁' },
-      { id: 'p2', name: HUMAN_NAME_POOL[1] || 'Sita', color: 'blue', type: 'bot', difficulty: 'medium', avatar: '🐼' },
-      { id: 'p3', name: HUMAN_NAME_POOL[2] || 'Aarav', color: 'yellow', type: 'bot', difficulty: 'medium', avatar: '🦊' },
-      { id: 'p4', name: HUMAN_NAME_POOL[3] || 'Maya', color: 'green', type: 'bot', difficulty: 'master', avatar: '🐲' },
-      { id: 'p5', name: HUMAN_NAME_POOL[4] || 'Rohan', color: 'red', type: 'bot', difficulty: 'medium', avatar: '🐨' },
-      { id: 'p6', name: HUMAN_NAME_POOL[5] || 'Alex', color: 'green', type: 'bot', difficulty: 'easy', avatar: '🐯' },
+      { id: 'p1', name: 'Player 1 (You)', color: 'red', type: 'human', avatar: '🦁' },
+      { id: 'p2', name: 'Bot Ramesh', color: 'blue', type: 'bot', difficulty: 'medium', avatar: '🐼' },
+      { id: 'p3', name: 'Bot Sita', color: 'yellow', type: 'bot', difficulty: 'medium', avatar: '🤖' },
+      { id: 'p4', name: 'Bot Bikram', color: 'green', type: 'bot', difficulty: 'master', avatar: '🐲' },
+      { id: 'p5', name: 'Bot Maya', color: 'red', type: 'bot', difficulty: 'medium', avatar: '🦊' },
+      { id: 'p6', name: 'Bot Aarav', color: 'green', type: 'bot', difficulty: 'easy', avatar: '🐯' },
     ];
   });
 

@@ -11,7 +11,6 @@ import {
 import { PlayerConfig } from '../types/game';
 import { LudoGameOptions } from '../types/ludo';
 import { peerTransport } from './peerService';
-import { HUMAN_NAME_POOL } from '../utils/constants';
 
 export class LobbyController {
   private state: LobbyState = {
@@ -132,9 +131,8 @@ export class LobbyController {
       return;
     }
 
-    const fallbackName = HUMAN_NAME_POOL[seatIndex % HUMAN_NAME_POOL.length] || `Player ${seatIndex + 1}`;
-    const sanitizedName = (req.name.trim() || fallbackName).slice(0, 16);
-    const sanitizedAvatar = req.avatar || '🐼';
+    const sanitizedName = (req.name.trim() || `Player ${seatIndex + 1}`).slice(0, 16);
+    const sanitizedAvatar = req.avatar || '🤖';
 
     const newSeat: LobbySeat = {
       seatIndex,

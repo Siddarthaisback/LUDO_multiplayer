@@ -72,15 +72,11 @@ export const DEFAULT_AVATARS = [
   '🦁', '🐯', '🐼', '🦊', '🐨', '🐸', '🦄', '🐲', '🤖', '👑', '⚡', '🚀'
 ];
 
-export const HUMAN_NAME_POOL = [
-  'Frank', 'Sita', 'Aarav', 'Maya', 'Rohan', 'Alex', 'Pooja', 'Sam', 'Kavita', 'Bikram'
-];
-
 export const DEFAULT_PLAYERS: PlayerConfig[] = [
-  { id: 'p1', name: HUMAN_NAME_POOL[0], color: 'red', type: 'human', avatar: '🦁', isHost: true },
-  { id: 'p2', name: HUMAN_NAME_POOL[1], color: 'green', type: 'human', avatar: '🐼' },
-  { id: 'p3', name: HUMAN_NAME_POOL[2], color: 'yellow', type: 'bot', difficulty: 'medium', avatar: '🦊' },
-  { id: 'p4', name: HUMAN_NAME_POOL[3], color: 'blue', type: 'bot', difficulty: 'master', avatar: '🐲' },
+  { id: 'p1', name: 'Player 1', color: 'red', type: 'human', avatar: '🦁', isHost: true },
+  { id: 'p2', name: 'Player 2', color: 'green', type: 'human', avatar: '🐼' },
+  { id: 'p3', name: 'Bot Blaze', color: 'yellow', type: 'bot', difficulty: 'medium', avatar: '🤖' },
+  { id: 'p4', name: 'Bot Viper', color: 'blue', type: 'bot', difficulty: 'master', avatar: '🐲' },
 ];
 
 // Snakes and Ladders Board Setup (Standard 1-100)
