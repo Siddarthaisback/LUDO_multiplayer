@@ -737,7 +737,7 @@ export const LudoGame: React.FC<LudoGameProps> = ({
   const activeColorInfo = activePlayer ? COLOR_MAP[activePlayer.config.color] : COLOR_MAP.red;
 
   return (
-    <div className={`flex-1 flex flex-col max-w-[1680px] w-full mx-auto px-2 sm:px-4 lg:px-6 py-2 gap-3 sm:gap-4 ${!isNative ? 'lg:justify-center lg:my-auto' : ''}`}>
+    <div className={`flex-1 flex flex-col mx-auto w-full max-w-[1600px] px-3 sm:px-4 lg:px-6 py-2 gap-3 sm:gap-4 ${!isNative ? 'xl:justify-center xl:my-auto' : ''}`}>
       {/* Top Settings Bar */}
       <SettingsBar
         onRestart={handleRestart}
@@ -772,34 +772,44 @@ export const LudoGame: React.FC<LudoGameProps> = ({
         </div>
       )}
 
-      {/* Main Game Layout Grid */}
-      <div className={`grid ${isNative ? 'grid-cols-1 max-w-lg mx-auto' : 'grid-cols-1 lg:grid-cols-12'} gap-4 lg:gap-6 items-center w-full`}>
-        {/* Center: The Board with Ludo King Golden Bezel */}
-        <div className={`${isNative ? 'w-full' : 'lg:col-span-6 order-1 lg:order-2'} flex flex-col items-center justify-center`}>
-          <div className="p-2 sm:p-3 rounded-[32px] bg-gradient-to-b from-amber-400 via-amber-500 to-yellow-600 shadow-[0_20px_50px_rgba(0,0,0,0.6)] border-2 border-amber-300/80">
-            <LudoBoard
-              players={players}
-              activeColor={activePlayer?.config.color || 'red'}
-              validMoves={validMoves}
-              onTokenClick={handleSelectToken}
-              onTokenHover={setHoveredTokenId}
-              isRolling={isRolling}
-              boardStyle={boardStyle}
-              isShaking={isShaking}
-              effects={effects}
-              pathPreview={currentPreview}
-            />
-          </div>
+      {/* Main Game Layout Grid: Board-First Responsive Design */}
+      <div
+        className={`grid w-full ${
+          isNative
+            ? 'grid-cols-1 max-w-lg mx-auto'
+            : 'grid-cols-1 items-start justify-items-center gap-4 lg:grid-cols-2 xl:grid-cols-[220px_minmax(0,1fr)_220px] xl:items-center xl:gap-6 2xl:grid-cols-[280px_minmax(0,1fr)_280px]'
+        }`}
+      >
+        {/* Center / Top: The Board (Directly Mounted Hero Element) */}
+        <div
+          className={`${
+            isNative
+              ? 'w-full'
+              : 'order-1 flex w-full min-w-0 flex-col items-center justify-center lg:col-span-2 xl:order-2 xl:col-span-1'
+          }`}
+        >
+          <LudoBoard
+            players={players}
+            activeColor={activePlayer?.config.color || 'red'}
+            validMoves={validMoves}
+            onTokenClick={handleSelectToken}
+            onTokenHover={setHoveredTokenId}
+            isRolling={isRolling}
+            boardStyle={boardStyle}
+            isShaking={isShaking}
+            effects={effects}
+            pathPreview={currentPreview}
+          />
         </div>
 
         {/* Left Column: Player Standings Podium */}
         {!isNative && (
-          <div className="lg:col-span-3 flex flex-col gap-3 order-3 lg:order-1 bg-gradient-to-b from-slate-900/95 via-slate-900/90 to-blue-950/90 border-2 border-amber-400/40 rounded-3xl p-3 sm:p-4 shadow-2xl backdrop-blur-md">
+          <div className="order-3 w-full max-w-md lg:order-2 lg:max-w-none xl:order-1 bg-gradient-to-b from-slate-900/95 via-slate-900/90 to-blue-950/90 border-2 border-amber-400/40 rounded-3xl p-3 sm:p-4 shadow-2xl backdrop-blur-md flex flex-col gap-3">
             <div className="text-xs uppercase font-black tracking-wider text-amber-300 px-1 flex items-center justify-between">
               <span>Player Standings</span>
               <span className="text-[10px] text-amber-400/70 font-bold">{players.length}P</span>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-1 gap-2.5">
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-2 xl:grid-cols-1 gap-2.5">
               {players.map((p, idx) => (
                 <PlayerCard
                   key={p.config.id}
@@ -817,7 +827,13 @@ export const LudoGame: React.FC<LudoGameProps> = ({
         )}
 
         {/* Right Column: Dice Action Tray */}
-        <div className={`${isNative ? 'w-full max-w-xs mx-auto' : 'lg:col-span-3 order-2 lg:order-3'} flex flex-col gap-3 sm:gap-4`}>
+        <div
+          className={`${
+            isNative
+              ? 'w-full max-w-xs mx-auto'
+              : 'order-2 w-full max-w-md lg:order-3 lg:max-w-none xl:order-3'
+          } flex flex-col gap-3 sm:gap-4`}
+        >
           <div className="bg-gradient-to-b from-slate-900/95 via-slate-900/90 to-blue-950/90 border-2 border-amber-400/40 rounded-3xl p-4 sm:p-5 shadow-2xl backdrop-blur-md flex flex-col items-center justify-center gap-3">
             <span className="text-xs font-black uppercase tracking-widest text-amber-300">
               Dice Roller

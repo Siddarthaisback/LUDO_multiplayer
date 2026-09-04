@@ -299,7 +299,7 @@ export const LudoBoard: React.FC<LudoBoardProps> = React.memo(({
 
   return (
     <div
-      className={`relative w-full aspect-square max-w-[min(95vw,480px)] sm:max-w-[min(88vw,560px)] md:max-w-[min(82vw,640px)] lg:max-w-[min(80vh,760px)] xl:max-w-[min(84vh,840px)] 2xl:max-w-[min(86vh,900px)] mx-auto rounded-3xl shadow-[0_25px_60px_-15px_rgba(0,0,0,0.8)] select-none transition-transform duration-100 ${
+      className={`relative w-full aspect-square max-w-[min(95vw,480px)] sm:max-w-[min(90vw,560px)] md:max-w-[min(88dvh,820px)] 2xl:max-w-[min(90dvh,900px)] mx-auto rounded-3xl shadow-[0_25px_60px_-15px_rgba(0,0,0,0.8)] select-none transition-transform duration-100 ${
         isShaking ? 'animate-shake' : ''
       }`}
     >
