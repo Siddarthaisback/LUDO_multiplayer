@@ -560,12 +560,163 @@ describe('OnlineLudoController & Turn Authority', () => {
     hostController.initSession(hostSession, hostSnapshot);
     hostController.setCallbacks({ onGuestDisconnected });
 
-    // Simulate peer leaving
-    // Trigger onPeerLeave registered on peerTransport
-    const handlers = (hostController as any);
-    // Directly call the handler callback set on peerTransport:
-    // peerTransport handlers were set during initSession
-    // Let's test through the peer transport mock or peer leave handler
     expect(hostSession.seatPeers?.[1]).toBe('peer-guest-1');
+  });
+
+  it('automatically recovers from stuck in-flight action via watchdog timeout (2500ms)', () => {
+    vi.useFakeTimers();
+    try {
+      const onRemoteRoll = vi.fn();
+      const hostController = new OnlineLudoController();
+
+      const hostSession: MultiplayerSession = {
+        roomCode: 'TEST03',
+        matchId: 'match-03',
+        mySeatIndex: 0,
+        myPeerId: 'peer-host',
+        isHost: true,
+        players: [
+          { id: 'p0', name: 'Host', color: 'red', avatar: '👑', type: 'human', isHost: true },
+          { id: 'p1', name: 'Guest', color: 'green', avatar: '🦊', type: 'human', isHost: false },
+        ],
+        options: {
+          requireSixToStart: true,
+          bonusTurnOnSix: true,
+          bonusTurnOnCapture: true,
+          bonusTurnOnHome: true,
+          maxConsecutiveSixes: 3,
+        },
+        seatPeers: { 0: 'peer-host', 1: 'peer-guest-1' },
+      };
+
+      const hostSnapshot: GameSnapshot = {
+        matchId: 'match-03',
+        sequence: 1,
+        players: [],
+        activePlayerIndex: 1,
+        diceValue: 1,
+        hasRolled: false,
+        isRolling: false,
+        consecutiveSixes: 0,
+        winner: null,
+        rankings: [],
+      };
+
+      hostController.initSession(hostSession, hostSnapshot);
+      hostController.setCallbacks({ onRemoteRoll });
+
+      const hostTransportHandler = (hostController as any).handleWireMessage.bind(hostController);
+
+      // 1. Send first valid ROLL_REQUEST
+      hostTransportHandler(
+        {
+          type: 'ROLL_REQUEST',
+          matchId: 'match-03',
+          seatIndex: 1,
+          timestamp: Date.now(),
+        },
+        'peer-guest-1'
+      );
+      expect(onRemoteRoll).toHaveBeenCalledTimes(1);
+
+      // 2. Immediate second request is dropped because action is in-flight
+      hostTransportHandler(
+        {
+          type: 'ROLL_REQUEST',
+          matchId: 'match-03',
+          seatIndex: 1,
+          timestamp: Date.now(),
+        },
+        'peer-guest-1'
+      );
+      expect(onRemoteRoll).toHaveBeenCalledTimes(1);
+
+      // 3. Fast-forward past watchdog timeout (2500ms)
+      vi.advanceTimersByTime(2600);
+
+      // 4. Now a new roll request is accepted because watchdog released the lock
+      hostTransportHandler(
+        {
+          type: 'ROLL_REQUEST',
+          matchId: 'match-03',
+          seatIndex: 1,
+          timestamp: Date.now(),
+        },
+        'peer-guest-1'
+      );
+      expect(onRemoteRoll).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('clearActionInFlight immediately releases the lock', () => {
+    const onRemoteRoll = vi.fn();
+    const hostController = new OnlineLudoController();
+
+    const hostSession: MultiplayerSession = {
+      roomCode: 'TEST04',
+      matchId: 'match-04',
+      mySeatIndex: 0,
+      myPeerId: 'peer-host',
+      isHost: true,
+      players: [
+        { id: 'p0', name: 'Host', color: 'red', avatar: '👑', type: 'human', isHost: true },
+        { id: 'p1', name: 'Guest', color: 'green', avatar: '🦊', type: 'human', isHost: false },
+      ],
+      options: {
+        requireSixToStart: true,
+        bonusTurnOnSix: true,
+        bonusTurnOnCapture: true,
+        bonusTurnOnHome: true,
+        maxConsecutiveSixes: 3,
+      },
+      seatPeers: { 0: 'peer-host', 1: 'peer-guest-1' },
+    };
+
+    const hostSnapshot: GameSnapshot = {
+      matchId: 'match-04',
+      sequence: 1,
+      players: [],
+      activePlayerIndex: 1,
+      diceValue: 1,
+      hasRolled: false,
+      isRolling: false,
+      consecutiveSixes: 0,
+      winner: null,
+      rankings: [],
+    };
+
+    hostController.initSession(hostSession, hostSnapshot);
+    hostController.setCallbacks({ onRemoteRoll });
+
+    const hostTransportHandler = (hostController as any).handleWireMessage.bind(hostController);
+
+    // Roll 1
+    hostTransportHandler(
+      {
+        type: 'ROLL_REQUEST',
+        matchId: 'match-04',
+        seatIndex: 1,
+        timestamp: Date.now(),
+      },
+      'peer-guest-1'
+    );
+    expect(onRemoteRoll).toHaveBeenCalledTimes(1);
+
+    // Manually clear action in flight (as done if handler finishes or rejects)
+    hostController.clearActionInFlight();
+
+    // Roll 2 is accepted immediately
+    hostTransportHandler(
+      {
+        type: 'ROLL_REQUEST',
+        matchId: 'match-04',
+        seatIndex: 1,
+        timestamp: Date.now(),
+      },
+      'peer-guest-1'
+    );
+    expect(onRemoteRoll).toHaveBeenCalledTimes(2);
   });
 });

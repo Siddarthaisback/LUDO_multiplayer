@@ -26,7 +26,7 @@ const BOT_ROLL_DELAY_MS = 800;
 const BOT_MOVE_DELAY_MS = 750;
 const DICE_ROLL_DURATION_MS = 600;
 const TOKEN_HOP_DURATION_MS = 200;
-const PASS_TURN_DELAY_MS = 800;
+const PASS_TURN_DELAY_MS = 1500;
 const AFTER_MOVE_DELAY_MS = 500;
 
 interface LudoGameProps {
@@ -81,6 +81,22 @@ export const LudoGame: React.FC<LudoGameProps> = ({
   const [hoveredTokenId, setHoveredTokenId] = useState<number | null>(null);
   const [isAnimatingMove, setIsAnimatingMove] = useState(false);
 
+  // Synchronized refs to eliminate race conditions and stale closures in network callbacks
+  const activePlayerIndexRef = useRef<number>(activePlayerIndex);
+  const hasRolledRef = useRef<boolean>(hasRolled);
+  const isRollingRef = useRef<boolean>(isRolling);
+  const playersRef = useRef<LudoPlayerState[]>(players);
+  const isAnimatingMoveRef = useRef<boolean>(isAnimatingMove);
+  const guestRollTimeoutRef = useRef<any>(null);
+
+  useEffect(() => {
+    activePlayerIndexRef.current = activePlayerIndex;
+    hasRolledRef.current = hasRolled;
+    isRollingRef.current = isRolling;
+    playersRef.current = players;
+    isAnimatingMoveRef.current = isAnimatingMove;
+  }, [activePlayerIndex, hasRolled, isRolling, players, isAnimatingMove]);
+
   const activePlayer = players[activePlayerIndex];
   // In online mode, host automates bot turns; in local mode, bots auto-play their turns
   const isAutomatedTurn = isOnline
@@ -92,8 +108,8 @@ export const LudoGame: React.FC<LudoGameProps> = ({
   const currentMoveSessionRef = useRef<number>(0);
   const rollPressStartTimeRef = useRef<number | null>(null);
   const hasHandledReleaseRef = useRef<boolean>(false);
-  const handleRollDiceRef = useRef<(fromRemote?: boolean, forceSix?: boolean, desiredRoll?: number) => void>(() => {});
-  const handleSelectTokenRef = useRef<(tokenId: number, fromRemote?: boolean) => void>(() => {});
+  const handleRollDiceRef = useRef<(fromRemote?: boolean, forceSix?: boolean, desiredRoll?: number, actingSeatIndex?: number) => void>(() => {});
+  const handleSelectTokenRef = useRef<(tokenId: number, fromRemote?: boolean, actingSeatIndex?: number) => void>(() => {});
 
   // Invalidate any active move transaction or timer on unmount
   useEffect(() => {
@@ -102,6 +118,7 @@ export const LudoGame: React.FC<LudoGameProps> = ({
       if (botActionTimerRef.current) clearTimeout(botActionTimerRef.current);
       if (diceRollTimerRef.current) clearTimeout(diceRollTimerRef.current);
       if (turnTimerRef.current) clearTimeout(turnTimerRef.current);
+      if (guestRollTimeoutRef.current) clearTimeout(guestRollTimeoutRef.current);
     };
   }, []);
 
@@ -110,18 +127,24 @@ export const LudoGame: React.FC<LudoGameProps> = ({
     if (!multiplayerSession) return;
 
     onlineLudoController.setCallbacks({
-      onRemoteRoll: (_val, _seatIndex, forceSix, desiredRoll) => {
+      onRemoteRoll: (_val, seatIndex, forceSix, desiredRoll) => {
         if (multiplayerSession.isHost) {
-          handleRollDiceRef.current(true, Boolean(forceSix), desiredRoll);
+          handleRollDiceRef.current(true, Boolean(forceSix), desiredRoll, seatIndex);
         }
       },
-      onRemoteMove: (tokenId) => {
+      onRemoteMove: (tokenId, seatIndex) => {
         if (multiplayerSession.isHost) {
-          handleSelectTokenRef.current(tokenId, true);
+          handleSelectTokenRef.current(tokenId, true, seatIndex);
         }
       },
       onStateSnapshot: (snapshot) => {
+        if (guestRollTimeoutRef.current) clearTimeout(guestRollTimeoutRef.current);
         currentMoveSessionRef.current++;
+        activePlayerIndexRef.current = snapshot.activePlayerIndex;
+        hasRolledRef.current = snapshot.hasRolled;
+        isRollingRef.current = snapshot.isRolling;
+        playersRef.current = snapshot.players;
+
         setPlayers(snapshot.players);
         setActivePlayerIndex(snapshot.activePlayerIndex);
         setDiceValue(snapshot.diceValue);
@@ -319,12 +342,38 @@ export const LudoGame: React.FC<LudoGameProps> = ({
   };
 
   // Dice Roll (Secret Hold: >= 500ms forces 6; normal tap produces standard 1-6 RNG; desiredRoll overrides if provided)
-  const handleRollDice = (fromRemote: boolean = false, forceSix: boolean = false, desiredRoll?: number) => {
-    if (isRolling || hasRolled || winner || isAnimatingMove) return;
-    if (isOnline && !fromRemote && !isMyOnlineTurn) return;
+  const handleRollDice = (
+    fromRemote: boolean = false,
+    forceSix: boolean = false,
+    desiredRoll?: number,
+    actingSeatIndex?: number
+  ) => {
+    const targetPlayerIndex = typeof actingSeatIndex === 'number' ? actingSeatIndex : activePlayerIndexRef.current;
+
+    if (isRollingRef.current || hasRolledRef.current || winner || isAnimatingMoveRef.current) {
+      if (multiplayerSession?.isHost) {
+        onlineLudoController.clearActionInFlight();
+      }
+      return;
+    }
+    if (isOnline && !fromRemote && targetPlayerIndex !== multiplayerSession?.mySeatIndex) return;
 
     if (isOnline && !multiplayerSession?.isHost) {
-      onlineLudoController.requestRoll(activePlayerIndex, forceSix, desiredRoll);
+      soundEffects.playDiceRoll();
+      setIsRolling(true);
+      isRollingRef.current = true;
+      onlineLudoController.requestRoll(targetPlayerIndex, forceSix, desiredRoll);
+
+      if (guestRollTimeoutRef.current) clearTimeout(guestRollTimeoutRef.current);
+      guestRollTimeoutRef.current = setTimeout(() => {
+        setIsRolling((current) => {
+          if (current && !hasRolledRef.current) {
+            isRollingRef.current = false;
+            return false;
+          }
+          return current;
+        });
+      }, 3000);
       return;
     }
 
@@ -333,6 +382,24 @@ export const LudoGame: React.FC<LudoGameProps> = ({
 
     soundEffects.playDiceRoll();
     setIsRolling(true);
+    isRollingRef.current = true;
+
+    // Immediately broadcast rolling snapshot so all remote players see the dice rolling
+    if (multiplayerSession?.isHost) {
+      onlineLudoController.broadcastSnapshot({
+        matchId: multiplayerSession.matchId,
+        sequence: 0,
+        players: playersRef.current,
+        activePlayerIndex: targetPlayerIndex,
+        diceValue,
+        hasRolled: false,
+        isRolling: true,
+        consecutiveSixes,
+        winner,
+        rankings,
+      });
+    }
+
     const roll =
       typeof desiredRoll === 'number' && Number.isInteger(desiredRoll) && desiredRoll >= 1 && desiredRoll <= 6
         ? desiredRoll
@@ -346,9 +413,12 @@ export const LudoGame: React.FC<LudoGameProps> = ({
       if (sessionAtRoll !== currentMoveSessionRef.current) return;
       setDiceValue(roll);
       setIsRolling(false);
+      isRollingRef.current = false;
       setHasRolled(true);
+      hasRolledRef.current = true;
 
-      const currentPlayer = players[activePlayerIndex];
+      const currentPlayers = playersRef.current;
+      const currentPlayer = currentPlayers[targetPlayerIndex];
 
       // Check Consecutive Sixes rule
       let newConsecutiveSixes = roll === 6 ? consecutiveSixes + 1 : 0;
@@ -367,15 +437,15 @@ export const LudoGame: React.FC<LudoGameProps> = ({
       }
 
       // Calculate Valid Moves with options
-      const legalMoves = LudoEngine.getValidMoves(currentPlayer, roll, players, options);
+      const legalMoves = LudoEngine.getValidMoves(currentPlayer, roll, currentPlayers, options);
       setValidMoves(legalMoves);
 
       if (multiplayerSession?.isHost) {
         onlineLudoController.broadcastSnapshot({
           matchId: multiplayerSession.matchId,
           sequence: 0,
-          players,
-          activePlayerIndex,
+          players: currentPlayers,
+          activePlayerIndex: targetPlayerIndex,
           diceValue: roll,
           hasRolled: true,
           isRolling: false,
@@ -398,35 +468,59 @@ export const LudoGame: React.FC<LudoGameProps> = ({
   };
 
   // Move Token Animation & Execution
-  const handleSelectToken = async (tokenId: number, fromRemote: boolean = false) => {
-    if (!hasRolled || isRolling || winner || isAnimatingMove) return;
-    if (isOnline && !fromRemote && !isMyOnlineTurn) return;
+  const handleSelectToken = async (tokenId: number, fromRemote: boolean = false, actingSeatIndex?: number) => {
+    const targetPlayerIndex = typeof actingSeatIndex === 'number' ? actingSeatIndex : activePlayerIndexRef.current;
+
+    if (!hasRolledRef.current || isRollingRef.current || winner || isAnimatingMoveRef.current) {
+      if (multiplayerSession?.isHost) {
+        onlineLudoController.clearActionInFlight();
+      }
+      return;
+    }
+    if (isOnline && !fromRemote && targetPlayerIndex !== multiplayerSession?.mySeatIndex) return;
 
     if (isOnline && !multiplayerSession?.isHost) {
-      onlineLudoController.requestMove(tokenId, activePlayerIndex);
+      onlineLudoController.requestMove(tokenId, targetPlayerIndex);
       return;
     }
 
     const move = validMoves.find((m) => m.tokenId === tokenId);
-    if (!move) return;
+    if (!move) {
+      if (multiplayerSession?.isHost) {
+        onlineLudoController.clearActionInFlight();
+      }
+      return;
+    }
 
-    const currentPlayer = players[activePlayerIndex];
-    const token = currentPlayer.tokens.find((t) => t.id === tokenId);
-    if (!token) return;
+    const currentPlayers = playersRef.current;
+    const currentPlayer = currentPlayers[targetPlayerIndex];
+    const token = currentPlayer?.tokens.find((t) => t.id === tokenId);
+    if (!token) {
+      if (multiplayerSession?.isHost) {
+        onlineLudoController.clearActionInFlight();
+      }
+      return;
+    }
 
     // Authoritative transaction resolution from pure engine
     const tx = LudoEngine.resolveMoveTransaction(
-      activePlayerIndex,
+      targetPlayerIndex,
       tokenId,
       diceValue,
-      players,
+      currentPlayers,
       options,
       rankings.length
     );
-    if (!tx) return;
+    if (!tx) {
+      if (multiplayerSession?.isHost) {
+        onlineLudoController.clearActionInFlight();
+      }
+      return;
+    }
 
     // Invalidate any prior move transactions and identify this session
     const sessionId = ++currentMoveSessionRef.current;
+    isAnimatingMoveRef.current = true;
 
     // 1. FLUSH PRE-ANIMATION STATE UPDATES IMMEDIATELY
     // Prevents React rerender (from setValidMoves / setIsAnimatingMove) from overwriting
@@ -514,6 +608,7 @@ export const LudoGame: React.FC<LudoGameProps> = ({
       el.style.zIndex = '';
     }
     if (sessionId !== currentMoveSessionRef.current) return;
+    playersRef.current = tx.updatedPlayers;
     flushSync(() => {
       setPlayers(tx.updatedPlayers);
     });
@@ -556,7 +651,7 @@ export const LudoGame: React.FC<LudoGameProps> = ({
         matchId: multiplayerSession.matchId,
         sequence: 0,
         players: tx.updatedPlayers,
-        activePlayerIndex,
+        activePlayerIndex: targetPlayerIndex,
         diceValue,
         hasRolled: true,
         isRolling: false,
@@ -572,11 +667,13 @@ export const LudoGame: React.FC<LudoGameProps> = ({
       if (tx.newRank === 1) {
         setWinner(currentPlayer.config);
         setIsAnimatingMove(false);
+        isAnimatingMoveRef.current = false;
         return;
       }
     }
 
     setIsAnimatingMove(false);
+    isAnimatingMoveRef.current = false;
 
     const nextDelay = AFTER_MOVE_DELAY_MS;
     if (turnTimerRef.current) clearTimeout(turnTimerRef.current);
@@ -587,27 +684,40 @@ export const LudoGame: React.FC<LudoGameProps> = ({
     }, nextDelay);
   };
 
-  handleRollDiceRef.current = handleRollDice;
-  handleSelectTokenRef.current = handleSelectToken;
+  useEffect(() => {
+    handleRollDiceRef.current = handleRollDice;
+    handleSelectTokenRef.current = handleSelectToken;
+  });
 
   const advanceTurn = (samePlayer: boolean, latestPlayers?: LudoPlayerState[]) => {
     if (turnTimerRef.current) clearTimeout(turnTimerRef.current);
-    setHasRolled(false);
-    setValidMoves([]);
-    setHoveredTokenId(null);
+    if (guestRollTimeoutRef.current) clearTimeout(guestRollTimeoutRef.current);
 
-    const currentPlayers = latestPlayers || players;
-    let nextIdx = activePlayerIndex;
+    const currentPlayers = latestPlayers || playersRef.current;
+    let nextIdx = activePlayerIndexRef.current;
+    let nextConsecutiveSixes = samePlayer ? consecutiveSixes : 0;
+
     if (!samePlayer) {
-      setConsecutiveSixes(0);
-      nextIdx = (activePlayerIndex + 1) % currentPlayers.length;
+      nextConsecutiveSixes = 0;
+      nextIdx = (nextIdx + 1) % currentPlayers.length;
       let loopCount = 0;
       while (currentPlayers[nextIdx].rank && loopCount < currentPlayers.length) {
         nextIdx = (nextIdx + 1) % currentPlayers.length;
         loopCount++;
       }
-      setActivePlayerIndex(nextIdx);
     }
+
+    activePlayerIndexRef.current = nextIdx;
+    hasRolledRef.current = false;
+    isRollingRef.current = false;
+    playersRef.current = currentPlayers;
+
+    setHasRolled(false);
+    setIsRolling(false);
+    setValidMoves([]);
+    setHoveredTokenId(null);
+    setConsecutiveSixes(nextConsecutiveSixes);
+    setActivePlayerIndex(nextIdx);
 
     if (multiplayerSession?.isHost) {
       onlineLudoController.broadcastSnapshot({
@@ -618,7 +728,7 @@ export const LudoGame: React.FC<LudoGameProps> = ({
         diceValue,
         hasRolled: false,
         isRolling: false,
-        consecutiveSixes: samePlayer ? consecutiveSixes : 0,
+        consecutiveSixes: nextConsecutiveSixes,
         winner,
         rankings,
       });

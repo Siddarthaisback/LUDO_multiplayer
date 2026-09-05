@@ -113,6 +113,13 @@ export function isMaintenanceActive(
   return flag === 'true';
 }
 
+export function getRouterContainerClass(screen: AppScreen, setupGameId: TaasGameId | null): string {
+  if (screen !== 'menu' && !setupGameId) {
+    return 'p-1 sm:p-2 overflow-hidden justify-center';
+  }
+  return 'py-3 sm:py-5 px-2 sm:px-4 overflow-y-auto justify-start';
+}
+
 function AppContent() {
   const isNative = isNativeBuild || (typeof window !== 'undefined' && Capacitor.isNativePlatform());
   const [initialLaunch] = useState<InitialLaunchState>(() => parseLaunchState());
@@ -223,7 +230,12 @@ function AppContent() {
       </header>
 
       {/* Main Content Router */}
-      <div className={`relative z-10 flex-1 min-h-0 flex flex-col justify-center ${screen === 'menu' && !setupGameId ? 'py-4 overflow-y-auto' : 'p-1 sm:p-2 overflow-hidden'}`}>
+      <div
+        className={`relative z-10 flex-1 min-h-0 flex flex-col ${getRouterContainerClass(
+          screen,
+          setupGameId
+        )}`}
+      >
         {/* If Player Setup is open for a game, show Setup screen first */}
         {setupGameId === 'ludo' ? (
           <LudoModeMenu

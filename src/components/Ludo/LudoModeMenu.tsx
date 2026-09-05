@@ -149,7 +149,7 @@ export const LudoModeMenu: React.FC<LudoModeMenuProps> = ({
   };
 
   return (
-    <div className="flex-1 flex flex-col justify-center items-center max-w-xl mx-auto w-full p-4 sm:p-6 animate-fade-in select-none text-[#f6ead7]">
+    <div className="flex-1 flex flex-col items-center max-w-xl mx-auto w-full p-2 sm:p-4 animate-fade-in select-none text-[#f6ead7]">
       {/* Top Header Navigation */}
       <div className="w-full flex items-center justify-between pb-3 mb-4 border-b border-[#4d2c16]">
         <div className="flex items-center gap-2">
@@ -181,50 +181,69 @@ export const LudoModeMenu: React.FC<LudoModeMenuProps> = ({
           )}
         </div>
 
-        <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/40">
-          Royal Edition
-        </span>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onOpenOnlineMultiplayer}
+            className="text-[11px] font-bold px-2.5 py-1 rounded-xl bg-cyan-950/90 text-cyan-300 border border-cyan-500/50 hover:bg-cyan-900 transition-all flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-95"
+          >
+            <span>🌐</span>
+            <span>Play Online</span>
+          </button>
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/40">
+            Royal Edition
+          </span>
+        </div>
       </div>
 
       {/* Hero Title */}
-      <div className="text-center mb-5">
-        <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-gradient-to-tr from-amber-600 via-yellow-500 to-amber-700 shadow-xl border border-amber-300/40 text-3xl mb-2">
+      <div className="text-center mb-4">
+        <div className="inline-flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-tr from-amber-600 via-yellow-500 to-amber-700 shadow-xl border border-amber-300/40 text-2xl sm:text-3xl mb-1.5">
           🎲
         </div>
-        <h1 className="text-2xl sm:text-3xl font-black text-[#f6ead7] tracking-tight">
+        <h1 className="text-xl sm:text-2xl font-black text-[#f6ead7] tracking-tight">
           Choose Game Mode
         </h1>
-        <p className="text-xs text-[#cdb99d] mt-1 max-w-sm mx-auto">
-          Play offline with friends on this device, challenge computer bots, or host an online room!
+        <p className="text-[11px] sm:text-xs text-[#cdb99d] mt-0.5 max-w-sm mx-auto">
+          Play offline on this device, challenge computer bots, or play online in real-time!
         </p>
       </div>
 
-      {/* Mode Tabs: Pass & Play vs Solo Bots */}
-      <div className="w-full grid grid-cols-2 gap-2 p-1 bg-[#1a0e06] border border-[#3f2210] rounded-2xl mb-4">
+      {/* Mode Launcher Tabs: Pass & Play | Vs Computer | Play Online */}
+      <div className="w-full grid grid-cols-3 gap-1.5 sm:gap-2 p-1 bg-[#1a0e06] border border-[#3f2210] rounded-2xl mb-4">
         <button
           type="button"
           onClick={() => setSelectedTab('pass_and_play')}
-          className={`py-3 px-3 rounded-xl font-black text-xs sm:text-sm transition-all flex items-center justify-center gap-2 cursor-pointer ${
+          className={`py-2.5 sm:py-3 px-2 rounded-xl font-black text-xs sm:text-sm transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
             selectedTab === 'pass_and_play'
               ? 'bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-600 text-slate-950 shadow-lg shadow-amber-500/25 scale-[1.02]'
               : 'text-[#cdb99d] hover:text-white hover:bg-[#28150a]'
           }`}
         >
           <Users className="w-4 h-4 shrink-0" />
-          <span>👥 Pass & Play</span>
+          <span className="truncate">Pass & Play</span>
         </button>
 
         <button
           type="button"
           onClick={() => setSelectedTab('solo_vs_bots')}
-          className={`py-3 px-3 rounded-xl font-black text-xs sm:text-sm transition-all flex items-center justify-center gap-2 cursor-pointer ${
+          className={`py-2.5 sm:py-3 px-2 rounded-xl font-black text-xs sm:text-sm transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
             selectedTab === 'solo_vs_bots'
               ? 'bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-600 text-slate-950 shadow-lg shadow-amber-500/25 scale-[1.02]'
               : 'text-[#cdb99d] hover:text-white hover:bg-[#28150a]'
           }`}
         >
           <Bot className="w-4 h-4 shrink-0" />
-          <span>🤖 Vs Computer</span>
+          <span className="truncate">Vs Computer</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={onOpenOnlineMultiplayer}
+          className="py-2.5 sm:py-3 px-2 rounded-xl font-black text-xs sm:text-sm text-cyan-200 bg-cyan-950/90 hover:bg-cyan-900 border border-cyan-500/60 shadow-lg hover:shadow-cyan-500/25 transition-all flex items-center justify-center gap-1.5 cursor-pointer active:scale-98 group"
+        >
+          <Globe className="w-4 h-4 text-cyan-400 group-hover:rotate-12 transition-transform shrink-0" />
+          <span className="truncate">Play Online</span>
         </button>
       </div>
 
@@ -428,35 +447,6 @@ export const LudoModeMenu: React.FC<LudoModeMenuProps> = ({
               ? `Start Pass & Play (${playerCount} Players)`
               : `Play vs ${playerCount - 1} Computer Bot${playerCount > 2 ? 's' : ''}`}
           </span>
-        </button>
-      </div>
-
-      {/* Online Multiplayer Divider / Card */}
-      <div className="w-full bg-[#1b0f07] border border-[#4d2915] rounded-3xl p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-lg">
-        <div className="flex items-center gap-3 text-left">
-          <div className="w-11 h-11 rounded-2xl bg-cyan-950/80 border border-cyan-500/50 flex items-center justify-center text-2xl shadow">
-            🌐
-          </div>
-          <div>
-            <div className="text-sm font-black text-white flex items-center gap-1.5">
-              <span>Play Online With Friends</span>
-              <span className="px-1.5 py-0.2 text-[9px] font-black uppercase tracking-wider bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 rounded">
-                2P-4P
-              </span>
-            </div>
-            <p className="text-[11px] text-[#cdb99d]">
-              Create a room, share the invite link, and play in real-time!
-            </p>
-          </div>
-        </div>
-
-        <button
-          type="button"
-          onClick={onOpenOnlineMultiplayer}
-          className="w-full sm:w-auto shrink-0 px-5 py-3 rounded-2xl font-black text-xs sm:text-sm text-cyan-200 bg-cyan-950/90 hover:bg-cyan-900 border border-cyan-500/60 shadow-lg hover:shadow-cyan-500/25 transition-all flex items-center justify-center gap-1.5 active:scale-98 cursor-pointer"
-        >
-          <span>🌐</span>
-          <span>Open Online Lobby</span>
         </button>
       </div>
     </div>

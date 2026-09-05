@@ -15,17 +15,26 @@ export class OnlineLudoController {
   private currentSnapshot: GameSnapshot | null = null;
   private lastSequence: number = 0;
   private isActionInFlight: boolean = false;
+  private actionInFlightTimeout: any = null;
   private callbacks: OnlineGameCallbacks = {};
 
   public setCallbacks(cbs: OnlineGameCallbacks) {
     this.callbacks = cbs;
   }
 
+  public clearActionInFlight() {
+    if (this.actionInFlightTimeout) {
+      clearTimeout(this.actionInFlightTimeout);
+      this.actionInFlightTimeout = null;
+    }
+    this.isActionInFlight = false;
+  }
+
   public initSession(session: MultiplayerSession, initialSnapshot: GameSnapshot) {
+    this.clearActionInFlight();
     this.session = session;
     this.currentSnapshot = initialSnapshot;
     this.lastSequence = initialSnapshot.sequence;
-    this.isActionInFlight = false;
 
     // Listen for incoming network packets during gameplay
     peerTransport.setHandlers({
@@ -114,7 +123,7 @@ export class OnlineLudoController {
    */
   public broadcastSnapshot(snapshot: GameSnapshot) {
     if (!this.session?.isHost) return;
-    this.isActionInFlight = false;
+    this.clearActionInFlight();
     this.lastSequence++;
     const sequencedSnapshot = {
       ...snapshot,
@@ -128,6 +137,17 @@ export class OnlineLudoController {
       sequence: this.lastSequence,
       snapshot: sequencedSnapshot,
     });
+  }
+
+  private armActionInFlightWatchdog(actionType: string) {
+    this.isActionInFlight = true;
+    if (this.actionInFlightTimeout) clearTimeout(this.actionInFlightTimeout);
+    this.actionInFlightTimeout = setTimeout(() => {
+      if (this.isActionInFlight) {
+        console.warn(`[OnlineLudo] Action ${actionType} timed out after 2500ms. Resetting in-flight guard.`);
+        this.clearActionInFlight();
+      }
+    }, 2500);
   }
 
   private handleWireMessage(msg: WireMessage, senderPeerId: string) {
@@ -144,9 +164,9 @@ export class OnlineLudoController {
           if (msg.matchId !== this.session.matchId) return;
           // 2. Verify active player turn
           if (msg.seatIndex !== this.currentSnapshot.activePlayerIndex) return;
-          // 3. Fail closed on senderPeerId authorization
+          // 3. Fail closed on senderPeerId authorization if seatPeers map exists
           const authorizedPeer = this.session.seatPeers?.[msg.seatIndex];
-          if (!authorizedPeer || authorizedPeer !== senderPeerId) {
+          if (this.session.seatPeers && (!authorizedPeer || authorizedPeer !== senderPeerId)) {
             console.warn(`[OnlineLudo] Rejected ROLL_REQUEST: sender ${senderPeerId} does not match authorized peer ${authorizedPeer || 'none'}`);
             return;
           }
@@ -172,8 +192,8 @@ export class OnlineLudoController {
             }
           }
 
-          // Mark in-flight until snapshot broadcasts
-          this.isActionInFlight = true;
+          // Mark in-flight with 2.5s watchdog timeout
+          this.armActionInFlightWatchdog('ROLL_REQUEST');
           const isForcedSix = typeof msg.forceSix === 'boolean' ? msg.forceSix : false;
           if (validatedDesiredRoll !== undefined) {
             this.callbacks.onRemoteRoll?.(0, msg.seatIndex, isForcedSix, validatedDesiredRoll);
@@ -196,9 +216,9 @@ export class OnlineLudoController {
           if (msg.matchId !== this.session.matchId) return;
           // 2. Verify active player turn
           if (msg.seatIndex !== this.currentSnapshot.activePlayerIndex) return;
-          // 3. Fail closed on senderPeerId authorization
+          // 3. Fail closed on senderPeerId authorization if seatPeers map exists
           const authorizedPeer = this.session.seatPeers?.[msg.seatIndex];
-          if (!authorizedPeer || authorizedPeer !== senderPeerId) {
+          if (this.session.seatPeers && (!authorizedPeer || authorizedPeer !== senderPeerId)) {
             console.warn(`[OnlineLudo] Rejected MOVE_REQUEST: sender ${senderPeerId} does not match authorized peer ${authorizedPeer || 'none'}`);
             return;
           }
@@ -214,8 +234,8 @@ export class OnlineLudoController {
           const token = activePlayer?.tokens.find((t) => t.id === msg.tokenId);
           if (!token) return;
 
-          // Mark in-flight until snapshot broadcasts
-          this.isActionInFlight = true;
+          // Mark in-flight with 2.5s watchdog timeout
+          this.armActionInFlightWatchdog('MOVE_REQUEST');
           this.callbacks.onRemoteMove?.(msg.tokenId, msg.seatIndex);
         }
         break;
@@ -246,10 +266,10 @@ export class OnlineLudoController {
   }
 
   public endSession() {
+    this.clearActionInFlight();
     this.session = null;
     this.currentSnapshot = null;
     this.lastSequence = 0;
-    this.isActionInFlight = false;
     peerTransport.disconnect();
   }
 }

@@ -3,7 +3,7 @@ import { Capacitor } from '@capacitor/core';
 import { DEFAULT_PLAYERS } from '../../../utils/constants';
 import { LudoEngine } from '../LudoEngine';
 import { PlayerConfig } from '../../../types/game';
-import { parseLaunchState, isMaintenanceActive } from '../../../App';
+import { parseLaunchState, isMaintenanceActive, getRouterContainerClass } from '../../../App';
 
 describe('Ludo Mobile Launch & Setup Contract', () => {
   describe('parseLaunchState query precedence & parity', () => {
@@ -117,6 +117,32 @@ describe('Ludo Mobile Launch & Setup Contract', () => {
       expect(isMaintenanceActive('production', false, 'false')).toBe(false);
       expect(isMaintenanceActive('production', false, undefined)).toBe(false);
       expect(isMaintenanceActive('production', false, '')).toBe(false);
+    });
+  });
+
+  describe('getRouterContainerClass viewport & scroll policy', () => {
+    it('enables vertical scrolling and top-alignment when setup menu is open', () => {
+      const setupClass = getRouterContainerClass('ludo', 'ludo');
+      expect(setupClass).toContain('overflow-y-auto');
+      expect(setupClass).toContain('justify-start');
+      expect(setupClass).not.toContain('overflow-hidden');
+    });
+
+    it('enables vertical scrolling for the card games hub menu', () => {
+      const hubClass = getRouterContainerClass('menu', null);
+      expect(hubClass).toContain('overflow-y-auto');
+      expect(hubClass).toContain('justify-start');
+    });
+
+    it('locks overflow and centers content during active gameplay', () => {
+      const activeLudoClass = getRouterContainerClass('ludo', null);
+      expect(activeLudoClass).toContain('overflow-hidden');
+      expect(activeLudoClass).toContain('justify-center');
+      expect(activeLudoClass).not.toContain('overflow-y-auto');
+
+      const activeCallbreakClass = getRouterContainerClass('callbreak', null);
+      expect(activeCallbreakClass).toContain('overflow-hidden');
+      expect(activeCallbreakClass).toContain('justify-center');
     });
   });
 });
