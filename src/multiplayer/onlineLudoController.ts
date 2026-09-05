@@ -164,12 +164,13 @@ export class OnlineLudoController {
           if (msg.matchId !== this.session.matchId) return;
           // 2. Verify active player turn
           if (msg.seatIndex !== this.currentSnapshot.activePlayerIndex) return;
-          // 3. Fail closed on senderPeerId authorization if seatPeers map exists
+          // 3. Sender authorization check: fail-closed on authoritative seat-to-peer binding
           const authorizedPeer = this.session.seatPeers?.[msg.seatIndex];
-          if (this.session.seatPeers && (!authorizedPeer || authorizedPeer !== senderPeerId)) {
+          if (!authorizedPeer || authorizedPeer !== senderPeerId) {
             console.warn(`[OnlineLudo] Rejected ROLL_REQUEST: sender ${senderPeerId} does not match authorized peer ${authorizedPeer || 'none'}`);
             return;
           }
+
           // 4. Verify game phase: must not have already rolled, not rolling, not game over
           if (this.currentSnapshot.hasRolled || this.currentSnapshot.isRolling || this.currentSnapshot.winner) {
             return;
@@ -216,12 +217,13 @@ export class OnlineLudoController {
           if (msg.matchId !== this.session.matchId) return;
           // 2. Verify active player turn
           if (msg.seatIndex !== this.currentSnapshot.activePlayerIndex) return;
-          // 3. Fail closed on senderPeerId authorization if seatPeers map exists
+          // 3. Sender authorization check: fail-closed on authoritative seat-to-peer binding
           const authorizedPeer = this.session.seatPeers?.[msg.seatIndex];
-          if (this.session.seatPeers && (!authorizedPeer || authorizedPeer !== senderPeerId)) {
+          if (!authorizedPeer || authorizedPeer !== senderPeerId) {
             console.warn(`[OnlineLudo] Rejected MOVE_REQUEST: sender ${senderPeerId} does not match authorized peer ${authorizedPeer || 'none'}`);
             return;
           }
+
           // 4. Verify game phase: must have rolled, not rolling, not game over
           if (!this.currentSnapshot.hasRolled || this.currentSnapshot.isRolling || this.currentSnapshot.winner) {
             return;

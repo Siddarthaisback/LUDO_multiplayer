@@ -106,6 +106,7 @@ export const LudoGame: React.FC<LudoGameProps> = ({
   const diceRollTimerRef = useRef<any>(null);
   const turnTimerRef = useRef<any>(null);
   const currentMoveSessionRef = useRef<number>(0);
+  const currentRollSessionRef = useRef<number>(0);
   const rollPressStartTimeRef = useRef<number | null>(null);
   const hasHandledReleaseRef = useRef<boolean>(false);
   const handleRollDiceRef = useRef<(fromRemote?: boolean, forceSix?: boolean, desiredRoll?: number, actingSeatIndex?: number) => void>(() => {});
@@ -115,6 +116,7 @@ export const LudoGame: React.FC<LudoGameProps> = ({
   useEffect(() => {
     return () => {
       currentMoveSessionRef.current++;
+      currentRollSessionRef.current++;
       if (botActionTimerRef.current) clearTimeout(botActionTimerRef.current);
       if (diceRollTimerRef.current) clearTimeout(diceRollTimerRef.current);
       if (turnTimerRef.current) clearTimeout(turnTimerRef.current);
@@ -373,12 +375,12 @@ export const LudoGame: React.FC<LudoGameProps> = ({
           }
           return current;
         });
-      }, 3000);
+      }, 4000);
       return;
     }
 
     if (turnTimerRef.current) clearTimeout(turnTimerRef.current);
-    const sessionAtRoll = currentMoveSessionRef.current;
+    const rollSession = ++currentRollSessionRef.current;
 
     soundEffects.playDiceRoll();
     setIsRolling(true);
@@ -410,7 +412,7 @@ export const LudoGame: React.FC<LudoGameProps> = ({
 
     if (diceRollTimerRef.current) clearTimeout(diceRollTimerRef.current);
     diceRollTimerRef.current = setTimeout(() => {
-      if (sessionAtRoll !== currentMoveSessionRef.current) return;
+      if (rollSession !== currentRollSessionRef.current) return;
       setDiceValue(roll);
       setIsRolling(false);
       isRollingRef.current = false;
@@ -429,7 +431,7 @@ export const LudoGame: React.FC<LudoGameProps> = ({
         setConsecutiveSixes(0);
         if (turnTimerRef.current) clearTimeout(turnTimerRef.current);
         turnTimerRef.current = setTimeout(() => {
-          if (sessionAtRoll === currentMoveSessionRef.current) {
+          if (rollSession === currentRollSessionRef.current) {
             advanceTurn(false);
           }
         }, 800);
@@ -459,7 +461,7 @@ export const LudoGame: React.FC<LudoGameProps> = ({
         const nextDelay = PASS_TURN_DELAY_MS;
         if (turnTimerRef.current) clearTimeout(turnTimerRef.current);
         turnTimerRef.current = setTimeout(() => {
-          if (sessionAtRoll === currentMoveSessionRef.current) {
+          if (rollSession === currentRollSessionRef.current) {
             advanceTurn(false);
           }
         }, nextDelay);
@@ -737,6 +739,7 @@ export const LudoGame: React.FC<LudoGameProps> = ({
 
   const handleRestart = () => {
     currentMoveSessionRef.current++;
+    currentRollSessionRef.current++;
     if (botActionTimerRef.current) clearTimeout(botActionTimerRef.current);
     if (diceRollTimerRef.current) clearTimeout(diceRollTimerRef.current);
     if (turnTimerRef.current) clearTimeout(turnTimerRef.current);
@@ -784,6 +787,7 @@ export const LudoGame: React.FC<LudoGameProps> = ({
 
   const handleStartConfiguredMatch = (newPlayers: PlayerConfig[]) => {
     currentMoveSessionRef.current++;
+    currentRollSessionRef.current++;
     if (botActionTimerRef.current) clearTimeout(botActionTimerRef.current);
     if (diceRollTimerRef.current) clearTimeout(diceRollTimerRef.current);
     if (turnTimerRef.current) clearTimeout(turnTimerRef.current);
@@ -829,6 +833,7 @@ export const LudoGame: React.FC<LudoGameProps> = ({
 
   const handleHome = () => {
     currentMoveSessionRef.current++;
+    currentRollSessionRef.current++;
     if (botActionTimerRef.current) clearTimeout(botActionTimerRef.current);
     if (diceRollTimerRef.current) clearTimeout(diceRollTimerRef.current);
     if (turnTimerRef.current) clearTimeout(turnTimerRef.current);
@@ -838,6 +843,7 @@ export const LudoGame: React.FC<LudoGameProps> = ({
 
   const handleOpenSetup = () => {
     currentMoveSessionRef.current++;
+    currentRollSessionRef.current++;
     if (botActionTimerRef.current) clearTimeout(botActionTimerRef.current);
     if (diceRollTimerRef.current) clearTimeout(diceRollTimerRef.current);
     if (turnTimerRef.current) clearTimeout(turnTimerRef.current);

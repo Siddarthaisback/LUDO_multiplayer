@@ -719,4 +719,140 @@ describe('OnlineLudoController & Turn Authority', () => {
     );
     expect(onRemoteRoll).toHaveBeenCalledTimes(2);
   });
+
+  it('enforces authoritative seat ownership and rejects unverified sender', () => {
+    const onRemoteRoll = vi.fn();
+    const hostController = new OnlineLudoController();
+
+    const hostSession: MultiplayerSession = {
+      roomCode: 'VERIFY01',
+      matchId: 'match-verify-01',
+      mySeatIndex: 0,
+      myPeerId: 'peer-host',
+      isHost: true,
+      players: [
+        { id: 'p0', name: 'Host', color: 'red', avatar: '👑', type: 'human', isHost: true },
+        { id: 'p1', name: 'Guest', color: 'green', avatar: '🦊', type: 'human', isHost: false },
+      ],
+      options: {
+        requireSixToStart: true,
+        bonusTurnOnSix: true,
+        bonusTurnOnCapture: true,
+        bonusTurnOnHome: true,
+        maxConsecutiveSixes: 3,
+      },
+      seatPeers: { 0: 'peer-host', 1: 'peer-guest-9999' },
+    };
+
+    const hostSnapshot: GameSnapshot = {
+      matchId: 'match-verify-01',
+      sequence: 1,
+      players: [],
+      activePlayerIndex: 1,
+      diceValue: 1,
+      hasRolled: false,
+      isRolling: false,
+      consecutiveSixes: 0,
+      winner: null,
+      rankings: [],
+    };
+
+    hostController.initSession(hostSession, hostSnapshot);
+    hostController.setCallbacks({ onRemoteRoll });
+
+    const hostTransportHandler = (hostController as any).handleWireMessage.bind(hostController);
+
+    // Impostor rejected
+    hostTransportHandler(
+      {
+        type: 'ROLL_REQUEST',
+        matchId: 'match-verify-01',
+        seatIndex: 1,
+        timestamp: Date.now(),
+      },
+      'peer-impostor-1111'
+    );
+    expect(onRemoteRoll).not.toHaveBeenCalled();
+
+    // Authoritative bound peer accepted
+    hostTransportHandler(
+      {
+        type: 'ROLL_REQUEST',
+        matchId: 'match-verify-01',
+        seatIndex: 1,
+        timestamp: Date.now(),
+      },
+      'peer-guest-9999'
+    );
+    expect(onRemoteRoll).toHaveBeenCalledTimes(1);
+  });
+
+  it('accepts GAME_STATE updates only when sequence > lastSequence on guest', () => {
+    const onStateSnapshot = vi.fn();
+    const guestController = new OnlineLudoController();
+
+    const guestSession: MultiplayerSession = {
+      roomCode: 'SEQ01',
+      matchId: 'match-seq-01',
+      mySeatIndex: 1,
+      myPeerId: 'peer-guest',
+      isHost: false,
+      players: [],
+      options: {} as any,
+    };
+
+    const initialSnapshot: GameSnapshot = {
+      matchId: 'match-seq-01',
+      sequence: 2,
+      players: [],
+      activePlayerIndex: 0,
+      diceValue: 1,
+      hasRolled: false,
+      isRolling: false,
+      consecutiveSixes: 0,
+      winner: null,
+      rankings: [],
+    };
+
+    guestController.initSession(guestSession, initialSnapshot);
+    guestController.setCallbacks({ onStateSnapshot });
+
+    const guestHandler = (guestController as any).handleWireMessage.bind(guestController);
+
+    // Sequence 2 (equal sequence) is dropped
+    guestHandler(
+      {
+        type: 'GAME_STATE',
+        matchId: 'match-seq-01',
+        sequence: 2,
+        snapshot: { ...initialSnapshot, isRolling: true },
+      },
+      'peer-host'
+    );
+    expect(onStateSnapshot).not.toHaveBeenCalled();
+
+    // Sequence 3 (newer sequence update) is accepted
+    guestHandler(
+      {
+        type: 'GAME_STATE',
+        matchId: 'match-seq-01',
+        sequence: 3,
+        snapshot: { ...initialSnapshot, isRolling: false, hasRolled: true, diceValue: 4 },
+      },
+      'peer-host'
+    );
+    expect(onStateSnapshot).toHaveBeenCalledTimes(1);
+
+    // Stale sequence 1 is dropped
+    guestHandler(
+      {
+        type: 'GAME_STATE',
+        matchId: 'match-seq-01',
+        sequence: 1,
+        snapshot: { ...initialSnapshot, diceValue: 1 },
+      },
+      'peer-host'
+    );
+    expect(onStateSnapshot).toHaveBeenCalledTimes(1);
+  });
 });

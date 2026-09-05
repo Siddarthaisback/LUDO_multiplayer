@@ -143,14 +143,14 @@ export class PeerTransport {
 
           this.hostConn = conn;
 
-          conn.on('open', () => {
+          const onConnected = () => {
             clearTimeout(this.connectTimeoutTimer);
             if (!isResolved) {
               isResolved = true;
               this.setStatus('connected', 'Connected to room host!');
               resolve(true);
             }
-          });
+          };
 
           conn.on('data', (data) => {
             try {
@@ -174,6 +174,12 @@ export class PeerTransport {
               reject(err);
             }
           });
+
+          if (conn.open || (conn as any).dataChannel?.readyState === 'open') {
+            onConnected();
+          } else {
+            conn.on('open', onConnected);
+          }
         });
 
         this.peer.on('error', (err: any) => {
@@ -198,15 +204,15 @@ export class PeerTransport {
   }
 
   private handleIncomingGuestConnection(conn: DataConnection) {
-    conn.on('open', () => {
+    const registerConn = () => {
       this.guestConns.set(conn.peer, conn);
       this.handlers.onPeerJoin?.(conn);
-    });
+    };
 
     conn.on('data', (data) => {
       try {
         const msg = data as WireMessage;
-        // Do NOT blindly rebroadcast; pass to host controller for validation
+        this.guestConns.set(conn.peer, conn);
         this.handlers.onMessage?.(msg, conn.peer);
       } catch (err) {
         console.warn('[PeerTransport] Malformed data from peer:', err);
@@ -223,26 +229,60 @@ export class PeerTransport {
       this.guestConns.delete(conn.peer);
       this.handlers.onPeerLeave?.(conn.peer);
     });
+
+    if (conn.open || (conn as any).dataChannel?.readyState === 'open') {
+      registerConn();
+    } else {
+      conn.on('open', registerConn);
+    }
+  }
+
+  /**
+   * Returns true if there is an active DataConnection for the given peerId
+   */
+  public hasGuestConn(peerId: string): boolean {
+    const conn = this.guestConns.get(peerId);
+    if (!conn) return false;
+    return Boolean(conn.open || (conn as any).dataChannel?.readyState === 'open');
   }
 
   /**
    * Send wire message directly to host (from guest)
    */
-  public sendToHost(msg: WireMessage) {
-    if (!this.isHost && this.hostConn && this.hostConn.open) {
+  public sendToHost(msg: WireMessage): boolean {
+    if (this.isHost || !this.hostConn) return false;
+    const isOpen = Boolean(this.hostConn.open || (this.hostConn as any).dataChannel?.readyState === 'open');
+    if (!isOpen) {
+      console.warn(`[PeerTransport] sendToHost dropped ${msg.type}: hostConn not open`);
+      return false;
+    }
+    try {
       this.hostConn.send(msg);
+      return true;
+    } catch (err) {
+      console.error(`[PeerTransport] sendToHost error for ${msg.type}:`, err);
+      return false;
     }
   }
 
   /**
    * Send wire message directly to a specific guest peer (from host)
    */
-  public sendToPeer(peerId: string, msg: WireMessage) {
-    if (this.isHost) {
-      const conn = this.guestConns.get(peerId);
-      if (conn && conn.open) {
-        conn.send(msg);
-      }
+  public sendToPeer(peerId: string, msg: WireMessage): boolean {
+    if (!this.isHost) return false;
+    const conn = this.guestConns.get(peerId);
+    if (!conn) return false;
+    const isOpen = Boolean(conn.open || (conn as any).dataChannel?.readyState === 'open');
+    if (!isOpen) {
+      console.warn(`[PeerTransport] sendToPeer dropped ${msg.type} to ${peerId}: conn not open`);
+      return false;
+    }
+    try {
+      conn.send(msg);
+      return true;
+    } catch (err) {
+      console.error(`[PeerTransport] sendToPeer error to ${peerId}:`, err);
+      return false;
     }
   }
 
@@ -250,13 +290,19 @@ export class PeerTransport {
    * Broadcast wire message from host to all connected guest peers
    */
   public broadcastFromHost(msg: WireMessage) {
-    if (this.isHost) {
-      this.guestConns.forEach((conn) => {
-        if (conn.open) {
+    if (!this.isHost) return;
+    this.guestConns.forEach((conn, peerId) => {
+      try {
+        const isOpen = Boolean(conn.open || (conn as any).dataChannel?.readyState === 'open');
+        if (isOpen) {
           conn.send(msg);
+        } else {
+          console.warn(`[PeerTransport] broadcastFromHost: peer ${peerId} connection not ready`);
         }
-      });
-    }
+      } catch (err) {
+        console.error(`[PeerTransport] broadcastFromHost failed sending to ${peerId}:`, err);
+      }
+    });
   }
 
   public disconnect() {
