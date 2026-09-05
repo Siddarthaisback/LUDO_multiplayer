@@ -3,8 +3,50 @@ import { Capacitor } from '@capacitor/core';
 import { DEFAULT_PLAYERS } from '../../../utils/constants';
 import { LudoEngine } from '../LudoEngine';
 import { PlayerConfig } from '../../../types/game';
+import { parseLaunchState } from '../../../App';
 
 describe('Ludo Mobile Launch & Setup Contract', () => {
+  describe('parseLaunchState query precedence & parity', () => {
+    it('defaults fresh web launch to Ludo Classic with setup menu open', () => {
+      const state = parseLaunchState('');
+      expect(state.screen).toBe('ludo');
+      expect(state.setupGameId).toBe('ludo');
+      expect(state.roomCode).toBe('');
+      expect(state.isLegacyHub).toBe(false);
+    });
+
+    it('prioritizes valid room invitation links to open multiplayer lobby', () => {
+      const state = parseLaunchState('?room=K9M2PX');
+      expect(state.screen).toBe('ludo');
+      expect(state.setupGameId).toBeNull();
+      expect(state.roomCode).toBe('K9M2PX');
+      expect(state.isLegacyHub).toBe(false);
+    });
+
+    it('normalizes room code from URL and handles lowercase/hyphens', () => {
+      const state = parseLaunchState('?room=ab-cd-ef');
+      expect(state.roomCode).toBe('ABCDEF');
+      expect(state.screen).toBe('ludo');
+      expect(state.setupGameId).toBeNull();
+    });
+
+    it('opens legacy multi-game hub when ?game=hub is explicitly requested without room', () => {
+      const state = parseLaunchState('?game=hub');
+      expect(state.screen).toBe('menu');
+      expect(state.setupGameId).toBeNull();
+      expect(state.roomCode).toBe('');
+      expect(state.isLegacyHub).toBe(true);
+    });
+
+    it('prioritizes room invitation over ?game=hub when both are present', () => {
+      const state = parseLaunchState('?room=K9M2PX&game=hub');
+      expect(state.roomCode).toBe('K9M2PX');
+      expect(state.screen).toBe('ludo');
+      expect(state.setupGameId).toBeNull();
+      expect(state.isLegacyHub).toBe(false);
+    });
+  });
+
   it('identifies native launch mode and defaults match setup correctly', () => {
     // Contract test: when Capacitor native is detected, game setup must target ludo
     const isNative = Capacitor.isNativePlatform();

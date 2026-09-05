@@ -42,43 +42,69 @@ const SnakesGame: React.ComponentType<any> = isNativeBuild
 import { DEFAULT_PLAYERS } from './utils/constants';
 import { Capacitor } from '@capacitor/core';
 import { OnlineLobbyModal } from './components/Multiplayer/OnlineLobbyModal';
-import { MultiplayerSession, GameSnapshot } from './multiplayer/protocol';
+import { MultiplayerSession, GameSnapshot, normalizeRoomCode } from './multiplayer/protocol';
 import { onlineLudoController } from './multiplayer/onlineLudoController';
 
-type AppScreen = 'menu' | TaasGameId;
+export type AppScreen = 'menu' | TaasGameId;
 
-function getInitialRoomCode(): string {
-  if (isNativeBuild || (typeof window !== 'undefined' && Capacitor.isNativePlatform())) return '';
-  if (typeof window !== 'undefined') {
-    const params = new URLSearchParams(window.location.search);
-    return params.get('room') || '';
-  }
-  return '';
+export interface InitialLaunchState {
+  roomCode: string;
+  screen: AppScreen;
+  setupGameId: TaasGameId | null;
+  isLegacyHub: boolean;
 }
 
-function getInitialScreen(): AppScreen {
+export function parseLaunchState(search?: string): InitialLaunchState {
   if (isNativeBuild || (typeof window !== 'undefined' && Capacitor.isNativePlatform())) {
-    return 'ludo';
+    return {
+      roomCode: '',
+      screen: 'ludo',
+      setupGameId: 'ludo',
+      isLegacyHub: false,
+    };
   }
-  if (typeof window !== 'undefined') {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('game') === 'ludo' || window.location.hash === '#ludo') {
-      return 'ludo';
-    }
+
+  const query = search !== undefined ? search : (typeof window !== 'undefined' ? window.location.search : '');
+  const params = new URLSearchParams(query);
+  const rawRoom = params.get('room');
+  const normalizedRoom = rawRoom ? normalizeRoomCode(rawRoom) : '';
+
+  // 1. Room invitation link takes highest precedence: open online lobby immediately
+  if (normalizedRoom) {
+    return {
+      roomCode: normalizedRoom,
+      screen: 'ludo',
+      setupGameId: null,
+      isLegacyHub: false,
+    };
   }
-  return 'menu';
+
+  // 2. Explicit ?game=hub opens legacy multi-game card hub
+  if (params.get('game') === 'hub') {
+    return {
+      roomCode: '',
+      screen: 'menu',
+      setupGameId: null,
+      isLegacyHub: true,
+    };
+  }
+
+  // 3. Default: Shared Ludo Classic experience on web and native
+  return {
+    roomCode: '',
+    screen: 'ludo',
+    setupGameId: 'ludo',
+    isLegacyHub: false,
+  };
 }
 
 export function App() {
   const isNative = isNativeBuild || (typeof window !== 'undefined' && Capacitor.isNativePlatform());
-  const [showMultiplayerModal, setShowMultiplayerModal] = useState<boolean>(() => Boolean(getInitialRoomCode()));
+  const [initialLaunch] = useState<InitialLaunchState>(() => parseLaunchState());
+  const [showMultiplayerModal, setShowMultiplayerModal] = useState<boolean>(() => Boolean(initialLaunch.roomCode));
   const [multiplayerSession, setMultiplayerSession] = useState<MultiplayerSession | null>(null);
-  const [screen, setScreen] = useState<AppScreen>(getInitialScreen);
-  const [setupGameId, setSetupGameId] = useState<TaasGameId | null>(() => {
-    if (getInitialRoomCode()) return null;
-    const initial = getInitialScreen();
-    return initial === 'ludo' ? 'ludo' : null;
-  });
+  const [screen, setScreen] = useState<AppScreen>(initialLaunch.screen);
+  const [setupGameId, setSetupGameId] = useState<TaasGameId | null>(initialLaunch.setupGameId);
   const [players, setPlayers] = useState<PlayerConfig[]>(DEFAULT_PLAYERS);
   const [matchKey, setMatchKey] = useState<number>(0);
 
@@ -135,13 +161,8 @@ export function App() {
       onlineLudoController.endSession();
       setMultiplayerSession(null);
     }
-    if (isNative) {
-      setScreen('ludo');
-      setSetupGameId('ludo');
-    } else {
-      setScreen('menu');
-      setSetupGameId(null);
-    }
+    setScreen('ludo');
+    setSetupGameId('ludo');
   };
 
   const handleOpenSetup = () => {
@@ -170,14 +191,14 @@ export function App() {
           className="flex items-center gap-2.5 text-left group transition-all cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 rounded-xl"
         >
           <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-400 via-yellow-500 to-amber-700 flex items-center justify-center text-base shadow-md group-hover:scale-105 transition-transform text-slate-950 font-black border border-amber-300/40">
-            {isNative ? '🎲' : '♠️'}
+            🎲
           </div>
           <div>
             <h1 className="text-base sm:text-lg font-black tracking-tight text-[#f6ead7] leading-none">
-              {isNative ? 'LUDO' : 'TAAS'} <span className="text-[#d6a85f]">{isNative ? 'CLASSIC' : 'ARENA'}</span>
+              LUDO <span className="text-[#d6a85f]">CLASSIC</span>
             </h1>
             <span className="text-[10px] text-[#cdb99d] font-bold uppercase tracking-wider">
-              {isNative ? 'Offline Board Game' : 'Nepali & Classic Hub'}
+              Royal Board Game • Offline & Online
             </span>
           </div>
         </button>
@@ -204,10 +225,10 @@ export function App() {
               setSetupGameId(null);
             }}
             onOpenOnlineMultiplayer={() => setShowMultiplayerModal(true)}
-            onBackToHub={() => {
+            onBackToHub={initialLaunch.isLegacyHub ? () => {
               setSetupGameId(null);
               setScreen('menu');
-            }}
+            } : undefined}
             onResumeGame={matchKey > 0 && screen === 'ludo' ? () => setSetupGameId(null) : undefined}
           />
         ) : setupGameId ? (
@@ -308,13 +329,17 @@ export function App() {
         {/* Online Multiplayer Lobby Modal */}
         {showMultiplayerModal && (
           <OnlineLobbyModal
-            initialRoomCode={getInitialRoomCode()}
+            initialRoomCode={initialLaunch.roomCode}
             onClose={() => {
               setShowMultiplayerModal(false);
               if (typeof window !== 'undefined' && window.history.replaceState) {
                 const url = new URL(window.location.href);
                 url.searchParams.delete('room');
                 window.history.replaceState({}, '', url.toString());
+              }
+              if (!multiplayerSession) {
+                setScreen('ludo');
+                setSetupGameId('ludo');
               }
             }}
             onStartMatch={handleStartOnlineMatch}

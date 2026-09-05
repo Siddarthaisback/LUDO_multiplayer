@@ -182,7 +182,7 @@ export const LudoModeMenu: React.FC<LudoModeMenuProps> = ({
         </div>
 
         <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-500/40">
-          v1.2 Native
+          Royal Edition
         </span>
       </div>
 
