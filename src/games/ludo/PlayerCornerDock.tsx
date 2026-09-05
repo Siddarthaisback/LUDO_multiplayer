@@ -158,7 +158,7 @@ export const PlayerCornerDock: React.FC<PlayerCornerDockProps> = ({
 
         {/* Shifting 3D Dice: The single primary interactive roll trigger (No separate ROLL button) */}
         <div className="shrink-0 flex items-center relative">
-          {/* Smart Auto-Capture / Distance Assist trigger (Purple circle drawn in diagram) */}
+          {/* Smart Auto-Capture / Distance Assist trigger (Stealth corner trigger) */}
           {isInteractive && onTriggerAutoCapture && (
             <button
               type="button"
@@ -167,9 +167,8 @@ export const PlayerCornerDock: React.FC<PlayerCornerDockProps> = ({
                 e.stopPropagation();
                 onTriggerAutoCapture();
               }}
-              title="Smart Auto-Capture / Distance Assist"
-              aria-label="Smart Auto-Capture Assist"
-              className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-purple-500 hover:bg-purple-400 border border-purple-200/80 shadow-[0_0_8px_rgba(168,85,247,0.85)] z-30 cursor-pointer active:scale-125 transition-transform animate-pulse"
+              aria-label="Action"
+              className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-transparent border-0 z-30 cursor-pointer select-none"
             />
           )}
 

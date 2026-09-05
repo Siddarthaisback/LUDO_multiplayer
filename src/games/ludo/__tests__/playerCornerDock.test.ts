@@ -225,7 +225,7 @@ describe('PlayerCornerDock Mapping & Turn Shifting Invariants', () => {
       })
     );
     expect(htmlWithTrigger).toContain('data-testid="auto-capture-trigger-red"');
-    expect(htmlWithTrigger).toContain('bg-purple-500');
+    expect(htmlWithTrigger).toContain('bg-transparent');
 
     // When already rolled: trigger should NOT be rendered
     const htmlRolled = renderToStaticMarkup(
