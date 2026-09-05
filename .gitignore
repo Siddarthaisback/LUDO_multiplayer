@@ -25,4 +25,5 @@ dist-ssr
 
 # Large archives and binaries
 *.zip
+*.apk
 ludo assets.zip
