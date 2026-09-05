@@ -3,7 +3,7 @@ import { Capacitor } from '@capacitor/core';
 import { DEFAULT_PLAYERS } from '../../../utils/constants';
 import { LudoEngine } from '../LudoEngine';
 import { PlayerConfig } from '../../../types/game';
-import { parseLaunchState } from '../../../App';
+import { parseLaunchState, isMaintenanceActive } from '../../../App';
 
 describe('Ludo Mobile Launch & Setup Contract', () => {
   describe('parseLaunchState query precedence & parity', () => {
@@ -96,5 +96,27 @@ describe('Ludo Mobile Launch & Setup Contract', () => {
 
     expect(movedToken.step).toBe(4);
     expect(movedToken.trackIndex).toBe(4);
+  });
+
+  describe('isMaintenanceActive gating policy', () => {
+    it('activates maintenance screen only for production web when VITE_MAINTENANCE_MODE=true', () => {
+      expect(isMaintenanceActive('production', false, 'true')).toBe(true);
+    });
+
+    it('bypasses maintenance screen during local development', () => {
+      expect(isMaintenanceActive('development', true, 'true')).toBe(false);
+      expect(isMaintenanceActive('production', true, 'true')).toBe(false);
+      expect(isMaintenanceActive('development', false, 'true')).toBe(false);
+    });
+
+    it('bypasses maintenance screen for native app builds', () => {
+      expect(isMaintenanceActive('native', false, 'true')).toBe(false);
+    });
+
+    it('deactivates maintenance screen when VITE_MAINTENANCE_MODE is false or unset', () => {
+      expect(isMaintenanceActive('production', false, 'false')).toBe(false);
+      expect(isMaintenanceActive('production', false, undefined)).toBe(false);
+      expect(isMaintenanceActive('production', false, '')).toBe(false);
+    });
   });
 });

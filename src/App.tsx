@@ -4,6 +4,7 @@ import { TaasArenaHub } from './components/Hub/TaasArenaHub';
 import { TaasGameId } from './components/Hub/CardRulesModal';
 import { GameSetup } from './components/Hub/GameSetup';
 import { LudoModeMenu } from './components/Ludo/LudoModeMenu';
+import { WorkInProgressScreen } from './components/Common/WorkInProgressScreen';
 const isNativeBuild = import.meta.env.MODE === 'native';
 
 const LudoGame = React.lazy(() =>
@@ -98,7 +99,21 @@ export function parseLaunchState(search?: string): InitialLaunchState {
   };
 }
 
-export function App() {
+export function isMaintenanceActive(
+  envMode: string = import.meta.env.MODE,
+  isDev: boolean = Boolean(import.meta.env.DEV),
+  flag: string | undefined = import.meta.env.VITE_MAINTENANCE_MODE
+): boolean {
+  if (isNativeBuild || (typeof window !== 'undefined' && Capacitor.isNativePlatform())) {
+    return false;
+  }
+  if (isDev || envMode === 'development' || envMode === 'native') {
+    return false;
+  }
+  return flag === 'true';
+}
+
+function AppContent() {
   const isNative = isNativeBuild || (typeof window !== 'undefined' && Capacitor.isNativePlatform());
   const [initialLaunch] = useState<InitialLaunchState>(() => parseLaunchState());
   const [showMultiplayerModal, setShowMultiplayerModal] = useState<boolean>(() => Boolean(initialLaunch.roomCode));
@@ -355,6 +370,14 @@ export function App() {
       )}
     </main>
   );
+}
+
+export function App() {
+  if (isMaintenanceActive()) {
+    return <WorkInProgressScreen />;
+  }
+
+  return <AppContent />;
 }
 
 export default App;
