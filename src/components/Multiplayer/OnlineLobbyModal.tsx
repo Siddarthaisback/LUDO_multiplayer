@@ -413,7 +413,11 @@ export const OnlineLobbyModal: React.FC<OnlineLobbyModalProps> = ({
             <div>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-extrabold uppercase tracking-wider text-slate-300">
-                  Connected Players ({lobbyState.playerCount}/4)
+                  Players ({lobbyState.seats.filter((s) => s && s.kind === 'human').length} Human
+                  {lobbyState.seats.filter((s) => s && s.kind === 'bot').length > 0
+                    ? ` + ${lobbyState.seats.filter((s) => s && s.kind === 'bot').length} Bot`
+                    : ''}
+                  , {lobbyState.playerCount}/4)
                 </span>
                 <span className="text-[11px] text-amber-400 font-semibold">
                   {peerTransport.isHost ? '👑 You are the Host' : 'Joined as Guest'}
@@ -464,11 +468,41 @@ export const OnlineLobbyModal: React.FC<OnlineLobbyModalProps> = ({
                         </div>
                       </div>
 
-                      {isOccupied && (
-                        <div className="flex items-center gap-1 text-[11px] font-bold text-emerald-400">
-                          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                          <span>Ready</span>
-                        </div>
+                      {/* Seat Action / Status */}
+                      {isOccupied ? (
+                        seat.kind === 'bot' ? (
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] font-bold text-purple-300 px-1.5 py-0.5 rounded bg-purple-900/40 border border-purple-500/40">
+                              🤖 Bot
+                            </span>
+                            {peerTransport.isHost && (
+                              <button
+                                type="button"
+                                onClick={() => lobbyController.removeBot(idx)}
+                                className="px-2 py-1 rounded-lg bg-rose-950/60 hover:bg-rose-900 text-rose-300 border border-rose-500/40 text-[10px] font-bold transition-all cursor-pointer active:scale-95"
+                                title="Remove Bot"
+                              >
+                                ✕
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1 text-[11px] font-bold text-emerald-400">
+                            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                            <span>Ready</span>
+                          </div>
+                        )
+                      ) : peerTransport.isHost && idx > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => lobbyController.addBot(idx, 'medium')}
+                          className="px-2.5 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-[11px] font-bold transition-all flex items-center gap-1 cursor-pointer active:scale-95"
+                        >
+                          <span>🤖</span>
+                          <span>+ Add Bot</span>
+                        </button>
+                      ) : (
+                        <span className="text-[11px] text-slate-600 font-medium">Waiting...</span>
                       )}
                     </div>
                   );

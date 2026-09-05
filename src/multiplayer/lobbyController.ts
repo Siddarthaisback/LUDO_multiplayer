@@ -8,7 +8,7 @@ import {
   PROTOCOL_VERSION,
   normalizeRoomCode,
 } from './protocol';
-import { PlayerConfig } from '../types/game';
+import { PlayerConfig, BotDifficulty } from '../types/game';
 import { LudoGameOptions } from '../types/ludo';
 import { peerTransport } from './peerService';
 
@@ -46,6 +46,7 @@ export class LobbyController {
 
     const hostSeat: LobbySeat = {
       seatIndex: 0,
+      kind: 'human',
       peerId: hostPeerId,
       name: sanitizedName,
       avatar: sanitizedAvatar,
@@ -56,6 +57,7 @@ export class LobbyController {
     };
 
     this.sequence = 1;
+    peerTransport.isHost = true;
     this.state = {
       roomCode,
       hostPeerId,
@@ -136,6 +138,7 @@ export class LobbyController {
 
     const newSeat: LobbySeat = {
       seatIndex,
+      kind: 'human',
       peerId: senderPeerId,
       name: sanitizedName,
       avatar: sanitizedAvatar,
@@ -209,32 +212,100 @@ export class LobbyController {
     }
   }
 
+  /**
+   * Host adds an AI bot to an empty seat (1, 2, or 3)
+   */
+  public addBot(seatIndex: number, difficulty: BotDifficulty = 'medium'): boolean {
+    if (!peerTransport.isHost) return false;
+    if (this.state.status !== 'waiting') return false;
+    if (seatIndex <= 0 || seatIndex >= 4) return false;
+    if (this.state.seats[seatIndex] !== null) return false;
+
+    const BOT_NAMES = ['', 'Bot Ramesh', 'Bot Sita', 'Bot Bikram'];
+    const BOT_AVATARS = ['', '🤖', '🦊', '🐲'];
+
+    const botSeat: LobbySeat = {
+      seatIndex,
+      kind: 'bot',
+      peerId: `bot-seat-${seatIndex}`,
+      name: BOT_NAMES[seatIndex] || `Bot ${seatIndex + 1}`,
+      avatar: BOT_AVATARS[seatIndex] || '🤖',
+      color: SEAT_COLORS[seatIndex],
+      isHost: false,
+      isReady: true,
+      connectedAt: Date.now(),
+      difficulty,
+    };
+
+    const newSeats = [...this.state.seats];
+    newSeats[seatIndex] = botSeat;
+    this.state = {
+      ...this.state,
+      seats: newSeats,
+      playerCount: newSeats.filter((s) => s !== null).length,
+    };
+
+    this.broadcastLobbyState();
+    this.notifyUpdate();
+    return true;
+  }
+
+  /**
+   * Host removes a bot from a seat (1, 2, or 3)
+   */
+  public removeBot(seatIndex: number): boolean {
+    if (!peerTransport.isHost) return false;
+    if (this.state.status !== 'waiting') return false;
+    if (seatIndex <= 0 || seatIndex >= 4) return false;
+    const seat = this.state.seats[seatIndex];
+    if (!seat || seat.kind !== 'bot') return false;
+
+    const newSeats = [...this.state.seats];
+    newSeats[seatIndex] = null;
+    this.state = {
+      ...this.state,
+      seats: newSeats,
+      playerCount: newSeats.filter((s) => s !== null).length,
+    };
+
+    this.broadcastLobbyState();
+    this.notifyUpdate();
+    return true;
+  }
+
   public canStart(): boolean {
-    return this.state.playerCount >= 2 && this.state.status === 'waiting';
+    if (!peerTransport.isHost) return false;
+    const totalCount = this.state.seats.filter((s) => s !== null).length;
+    const humanCount = this.state.seats.filter((s) => s && s.kind === 'human').length;
+    return totalCount >= 2 && totalCount <= 4 && humanCount >= 1 && this.state.status === 'waiting';
   }
 
   /**
    * Host starts the online match
    */
   public startMatch(options: LudoGameOptions): { session: MultiplayerSession; initialSnapshot: GameSnapshot } | null {
+    if (!peerTransport.isHost) return null;
     if (!this.canStart()) return null;
 
     this.state.status = 'in_game';
     const matchId = `match-${this.state.roomCode}-${Date.now()}`;
 
-    // Convert occupied seats to PlayerConfig list
+    // Convert occupied seats to PlayerConfig list in ascending lobby seat order (0, 1, 2, 3)
     const activeSeats = this.state.seats.filter((s): s is LobbySeat => s !== null);
     const seatPeers: Record<number, string> = {};
     activeSeats.forEach((seat, index) => {
-      seatPeers[index] = seat.peerId;
+      if (seat.kind === 'human') {
+        seatPeers[index] = seat.peerId;
+      }
     });
 
     const players: PlayerConfig[] = activeSeats.map((seat, index) => ({
-      id: `online-${index}-${seat.peerId.slice(-4)}`,
+      id: seat.kind === 'human' ? `online-${index}-${seat.peerId.slice(-4)}` : `online-bot-${index}`,
       name: seat.name,
       avatar: seat.avatar,
       color: seat.color,
-      type: 'human' as const,
+      type: seat.kind === 'bot' ? ('bot' as const) : ('human' as const),
+      difficulty: seat.difficulty,
       isHost: seat.isHost,
     }));
 
@@ -279,9 +350,9 @@ export class LobbyController {
       },
     };
 
-    // Notify all guests to launch the match
+    // Notify all human guests to launch the match
     activeSeats.forEach((seat, index) => {
-      if (!seat.isHost) {
+      if (!seat.isHost && seat.kind === 'human') {
         const guestSession: MultiplayerSession = {
           ...session,
           mySeatIndex: index,
@@ -322,6 +393,7 @@ export class LobbyController {
       playerCount: 0,
     };
     this.sequence = 0;
+    peerTransport.isHost = false;
     this.notifyUpdate();
   }
 }

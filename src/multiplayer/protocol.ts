@@ -1,12 +1,13 @@
-import { PlayerColor, PlayerConfig } from '../types/game';
+import { PlayerColor, PlayerConfig, BotDifficulty } from '../types/game';
 import { LudoPlayerState, LudoGameOptions } from '../types/ludo';
 
-export const PROTOCOL_VERSION = '1.1.0';
+export const PROTOCOL_VERSION = '1.2.0';
 
 export const SEAT_COLORS: PlayerColor[] = ['red', 'green', 'yellow', 'blue'];
 
 export interface LobbySeat {
   seatIndex: number; // 0 = Host (Red), 1 = Green, 2 = Yellow, 3 = Blue
+  kind: 'human' | 'bot';
   peerId: string;
   name: string;
   avatar: string;
@@ -14,6 +15,7 @@ export interface LobbySeat {
   isHost: boolean;
   isReady: boolean;
   connectedAt: number;
+  difficulty?: BotDifficulty;
 }
 
 export interface LobbyState {

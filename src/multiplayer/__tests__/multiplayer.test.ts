@@ -9,6 +9,7 @@ import {
 } from '../protocol';
 import { LobbyController } from '../lobbyController';
 import { OnlineLudoController } from '../onlineLudoController';
+import { peerTransport } from '../peerService';
 
 describe('Multiplayer Protocol & Helpers', () => {
   it('generates a valid 6-character room code without ambiguous characters', () => {
@@ -122,6 +123,87 @@ describe('LobbyController', () => {
     expect(lobby.getState().status).toBe('in_game');
     // Cannot start again while in_game
     expect(lobby.canStart()).toBe(false);
+  });
+
+  it('allows host to add and remove bots to fill empty seats (4P online with bots)', () => {
+    lobby.initHostLobby('ROOM88', 'Host', '👑', 'peer-host');
+
+    // 1 guest joins seat 1
+    lobby.handleJoinRequest('peer-g1', {
+      roomCode: 'ROOM88',
+      name: 'Friend',
+      avatar: '🦊',
+      protocolVersion: PROTOCOL_VERSION,
+    });
+    expect(lobby.getState().playerCount).toBe(2);
+
+    // Host cannot add bot to seat 0 (host) or seat 1 (occupied)
+    expect(lobby.addBot(0)).toBe(false);
+    expect(lobby.addBot(1)).toBe(false);
+
+    // Host adds bots to seat 2 and seat 3
+    expect(lobby.addBot(2, 'easy')).toBe(true);
+    expect(lobby.addBot(3, 'master')).toBe(true);
+    expect(lobby.getState().playerCount).toBe(4);
+
+    const seat2 = lobby.getState().seats[2];
+    const seat3 = lobby.getState().seats[3];
+    expect(seat2?.kind).toBe('bot');
+    expect(seat2?.difficulty).toBe('easy');
+    expect(seat2?.color).toBe('yellow');
+    expect(seat3?.kind).toBe('bot');
+    expect(seat3?.difficulty).toBe('master');
+    expect(seat3?.color).toBe('blue');
+
+    // Host removes bot at seat 3
+    expect(lobby.removeBot(3)).toBe(true);
+    expect(lobby.getState().playerCount).toBe(3);
+    expect(lobby.getState().seats[3]).toBeNull();
+
+    // Re-add bot at seat 3 to test 4P start
+    expect(lobby.addBot(3, 'medium')).toBe(true);
+    expect(lobby.canStart()).toBe(true);
+
+    const matchResult = lobby.startMatch({
+      requireSixToStart: true,
+      bonusTurnOnSix: true,
+      bonusTurnOnCapture: true,
+      bonusTurnOnHome: true,
+      maxConsecutiveSixes: 3,
+    });
+
+    expect(matchResult).not.toBeNull();
+    const session = matchResult!.session;
+    expect(session.players).toHaveLength(4);
+    expect(session.players[0].type).toBe('human');
+    expect(session.players[1].type).toBe('human');
+    expect(session.players[2].type).toBe('bot');
+    expect(session.players[2].difficulty).toBe('easy');
+    expect(session.players[3].type).toBe('bot');
+    expect(session.players[3].difficulty).toBe('medium');
+
+    // seatPeers should ONLY contain human peers
+    expect(session.seatPeers?.[0]).toBe('peer-host');
+    expect(session.seatPeers?.[1]).toBe('peer-g1');
+    expect(session.seatPeers?.[2]).toBeUndefined();
+    expect(session.seatPeers?.[3]).toBeUndefined();
+  });
+
+  it('rejects bot management and startMatch when caller is not the local host', () => {
+    lobby.initHostLobby('ROOM88', 'Host', '👑', 'peer-host');
+    // Simulate non-host / guest environment
+    peerTransport.isHost = false;
+
+    expect(lobby.addBot(2, 'easy')).toBe(false);
+    expect(lobby.removeBot(2)).toBe(false);
+    expect(lobby.canStart()).toBe(false);
+    expect(lobby.startMatch({
+      requireSixToStart: true,
+      bonusTurnOnSix: true,
+      bonusTurnOnCapture: true,
+      bonusTurnOnHome: true,
+      maxConsecutiveSixes: 3,
+    })).toBeNull();
   });
 
   it('handles peer leave and frees their seat', () => {

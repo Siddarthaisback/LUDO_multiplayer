@@ -1,5 +1,15 @@
 import { PlayerColor, PlayerConfig } from './game';
 
+export type LudoMode = 'pass_and_play' | 'solo_vs_bots' | 'online';
+
+export interface LudoLaunchConfig {
+  mode: LudoMode;
+  playerCount: 2 | 3 | 4;
+  players: PlayerConfig[];
+  options: LudoGameOptions;
+  twoPlayerMode?: 'red-blue' | 'blue-red' | 'green-yellow' | 'yellow-green';
+}
+
 export type TokenStatus = 'yard' | 'track' | 'runway' | 'home';
 
 export interface LudoTokenState {

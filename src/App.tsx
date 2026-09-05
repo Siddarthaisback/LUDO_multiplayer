@@ -3,6 +3,7 @@ import { PlayerConfig } from './types/game';
 import { TaasArenaHub } from './components/Hub/TaasArenaHub';
 import { TaasGameId } from './components/Hub/CardRulesModal';
 import { GameSetup } from './components/Hub/GameSetup';
+import { LudoModeMenu } from './components/Ludo/LudoModeMenu';
 const isNativeBuild = import.meta.env.MODE === 'native';
 
 const LudoGame = React.lazy(() =>
@@ -188,7 +189,28 @@ export function App() {
       {/* Main Content Router */}
       <div className={`relative z-10 flex-1 min-h-0 flex flex-col justify-center ${screen === 'menu' && !setupGameId ? 'py-4 overflow-y-auto' : 'p-1 sm:p-2 overflow-hidden'}`}>
         {/* If Player Setup is open for a game, show Setup screen first */}
-        {setupGameId ? (
+        {setupGameId === 'ludo' ? (
+          <LudoModeMenu
+            isNative={isNative}
+            onStartOfflineGame={(configuredPlayers, options) => {
+              if (multiplayerSession) {
+                onlineLudoController.endSession();
+                setMultiplayerSession(null);
+              }
+              setPlayers(configuredPlayers);
+              setLudoOptions(options);
+              setMatchKey((prev) => prev + 1);
+              setScreen('ludo');
+              setSetupGameId(null);
+            }}
+            onOpenOnlineMultiplayer={() => setShowMultiplayerModal(true)}
+            onBackToHub={() => {
+              setSetupGameId(null);
+              setScreen('menu');
+            }}
+            onResumeGame={matchKey > 0 && screen === 'ludo' ? () => setSetupGameId(null) : undefined}
+          />
+        ) : setupGameId ? (
           <GameSetup
             gameType={setupGameId}
             initialPlayers={players}
