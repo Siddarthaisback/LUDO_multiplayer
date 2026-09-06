@@ -209,40 +209,17 @@ export class OnlineLudoController {
             return;
           }
 
-          // 5. Validate forceSix property if present
-          if (msg.forceSix !== undefined && typeof msg.forceSix !== 'boolean') {
-            console.warn(`[OnlineLudo] Rejected malformed ROLL_REQUEST: forceSix must be boolean`);
-            peerTransport.sendToPeer(senderPeerId, {
-              type: 'ACTION_REJECTED',
-              matchId: this.session.matchId,
-              actionType: 'ROLL',
-              seatIndex: msg.seatIndex,
-              reason: 'Malformed forceSix parameter',
-            });
-            return;
-          }
+          // 5. Safely normalize optional forceSix (treat only literal boolean true as forced six)
+          const isForcedSix = msg.forceSix === true;
 
-          // 6. Validate desiredRoll property if present (finite integer 1..6)
+          // 6. Safely normalize optional desiredRoll (must be finite integer 1..6; otherwise standard RNG)
           let validatedDesiredRoll: number | undefined = undefined;
-          if (msg.desiredRoll !== undefined) {
-            if (typeof msg.desiredRoll === 'number' && Number.isInteger(msg.desiredRoll) && msg.desiredRoll >= 1 && msg.desiredRoll <= 6) {
-              validatedDesiredRoll = msg.desiredRoll;
-            } else {
-              console.warn(`[OnlineLudo] Rejected malformed ROLL_REQUEST: desiredRoll must be integer between 1 and 6`);
-              peerTransport.sendToPeer(senderPeerId, {
-                type: 'ACTION_REJECTED',
-                matchId: this.session.matchId,
-                actionType: 'ROLL',
-                seatIndex: msg.seatIndex,
-                reason: 'Malformed desiredRoll parameter',
-              });
-              return;
-            }
+          if (typeof msg.desiredRoll === 'number' && Number.isInteger(msg.desiredRoll) && msg.desiredRoll >= 1 && msg.desiredRoll <= 6) {
+            validatedDesiredRoll = msg.desiredRoll;
           }
 
           // Mark in-flight with 2.5s watchdog timeout
           this.armActionInFlightWatchdog('ROLL_REQUEST');
-          const isForcedSix = typeof msg.forceSix === 'boolean' ? msg.forceSix : false;
           try {
             if (validatedDesiredRoll !== undefined) {
               this.callbacks.onRemoteRoll?.(0, msg.seatIndex, isForcedSix, validatedDesiredRoll);

@@ -445,7 +445,7 @@ describe('OnlineLudoController & Turn Authority', () => {
       hasRolled: false,
     });
 
-    // 2c. Malformed forceSix (non-boolean) -> MUST BE REJECTED
+    // 2c. Malformed forceSix (non-boolean) -> safely normalized to false without blocking or rejecting
     hostTransportHandler(
       {
         type: 'ROLL_REQUEST',
@@ -456,7 +456,14 @@ describe('OnlineLudoController & Turn Authority', () => {
       },
       'peer-guest-1'
     );
-    expect(onRemoteRoll).toHaveBeenCalledTimes(2); // Not called, rejected!
+    expect(onRemoteRoll).toHaveBeenCalledTimes(3);
+    expect(onRemoteRoll).toHaveBeenLastCalledWith(0, 1, false);
+
+    // Reset in-flight by broadcasting snapshot
+    hostController.broadcastSnapshot({
+      ...hostSnapshot,
+      hasRolled: false,
+    });
 
     // 3. Immediate duplicate ROLL_REQUEST while in-flight -> MUST BE DROPPED
     // Set in-flight by valid call:
@@ -470,7 +477,7 @@ describe('OnlineLudoController & Turn Authority', () => {
       },
       'peer-guest-1'
     );
-    expect(onRemoteRoll).toHaveBeenCalledTimes(3);
+    expect(onRemoteRoll).toHaveBeenCalledTimes(4);
 
     hostTransportHandler(
       {
@@ -481,7 +488,7 @@ describe('OnlineLudoController & Turn Authority', () => {
       },
       'peer-guest-1'
     );
-    expect(onRemoteRoll).toHaveBeenCalledTimes(3); // Still 3, dropped!
+    expect(onRemoteRoll).toHaveBeenCalledTimes(4); // Still 4, dropped!
 
     // Reset in-flight by broadcasting snapshot
     hostController.broadcastSnapshot({

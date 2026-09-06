@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { calculateSmartAutoCaptureRoll } from '../LudoEngine';
 import { LudoPlayerState, LudoGameOptions } from '../../../types/ludo';
 import { OnlineLudoController } from '../../../multiplayer/onlineLudoController';
+import { peerTransport } from '../../../multiplayer/peerService';
 import { MultiplayerSession, GameSnapshot } from '../../../multiplayer/protocol';
 
 describe('Smart Auto-Capture / Distance Calculator', () => {
@@ -172,42 +173,96 @@ describe('Smart Auto-Capture / Distance Calculator', () => {
       expect(onRemoteRoll).toHaveBeenCalledWith(0, 1, false, 4);
     });
 
-    it('rejects invalid desiredRoll (< 1 or > 6 or NaN) and passes undefined', () => {
-      const controller = new OnlineLudoController();
-      controller.initSession(mockSession, mockSnapshot);
+    it('safely falls back to standard RNG roll when desiredRoll is null, undefined, out of bounds, NaN, or string without emitting ACTION_REJECTED', () => {
+      const sendToPeerSpy = vi.spyOn(peerTransport, 'sendToPeer').mockReturnValue(true);
 
-      const onRemoteRoll = vi.fn();
-      controller.setCallbacks({ onRemoteRoll });
+      const invalidDesiredRolls = [null, undefined, 7, 0, -1, 3.5, NaN, '4'];
 
-      // Out of bounds: 7
-      (controller as any).handleWireMessage(
-        {
-          type: 'ROLL_REQUEST',
-          matchId: 'room-test',
-          seatIndex: 1,
-          forceSix: false,
-          desiredRoll: 7,
-          timestamp: Date.now(),
-        },
-        'guest-2'
-      );
+      for (const invalidVal of invalidDesiredRolls) {
+        sendToPeerSpy.mockClear();
+        const controller = new OnlineLudoController();
+        controller.initSession(mockSession, mockSnapshot);
 
-      // Desired roll 7 is malformed, so ROLL_REQUEST is rejected and not forwarded
-      expect(onRemoteRoll).not.toHaveBeenCalled();
+        const onRemoteRoll = vi.fn();
+        controller.setCallbacks({ onRemoteRoll });
 
-      // Valid roll without desiredRoll is forwarded normally with 3 arguments
-      (controller as any).handleWireMessage(
-        {
-          type: 'ROLL_REQUEST',
-          matchId: 'room-test',
-          seatIndex: 1,
-          forceSix: false,
-          timestamp: Date.now(),
-        },
-        'guest-2'
-      );
-      expect(onRemoteRoll).toHaveBeenCalledTimes(1);
-      expect(onRemoteRoll).toHaveBeenCalledWith(0, 1, false);
+        (controller as any).handleWireMessage(
+          {
+            type: 'ROLL_REQUEST',
+            matchId: 'room-test',
+            seatIndex: 1,
+            forceSix: false,
+            desiredRoll: invalidVal,
+            timestamp: Date.now(),
+          },
+          'guest-2'
+        );
+
+        expect(onRemoteRoll).toHaveBeenCalledTimes(1);
+        // Must be invoked with 3 arguments (no desiredRoll override argument)
+        expect(onRemoteRoll).toHaveBeenCalledWith(0, 1, false);
+
+        // Never emit ACTION_REJECTED for optional parameter variations
+        const rejectionCall = sendToPeerSpy.mock.calls.find((call) => (call[1] as any)?.type === 'ACTION_REJECTED');
+        expect(rejectionCall).toBeUndefined();
+      }
+
+      sendToPeerSpy.mockRestore();
+    });
+
+    it('normalizes forceSix safely: boolean true becomes true, while null or malformed values fall back to false without rejection', () => {
+      const sendToPeerSpy = vi.spyOn(peerTransport, 'sendToPeer').mockReturnValue(true);
+
+      // 1. Literal true
+      {
+        const controller = new OnlineLudoController();
+        controller.initSession(mockSession, mockSnapshot);
+        const onRemoteRoll = vi.fn();
+        controller.setCallbacks({ onRemoteRoll });
+
+        (controller as any).handleWireMessage(
+          {
+            type: 'ROLL_REQUEST',
+            matchId: 'room-test',
+            seatIndex: 1,
+            forceSix: true,
+            timestamp: Date.now(),
+          },
+          'guest-2'
+        );
+
+        expect(onRemoteRoll).toHaveBeenCalledTimes(1);
+        expect(onRemoteRoll).toHaveBeenCalledWith(0, 1, true);
+      }
+
+      // 2. Malformed / non-boolean forceSix values fallback to false
+      const malformedForceSixValues = [null, 'true', 1, {}, false];
+      for (const val of malformedForceSixValues) {
+        sendToPeerSpy.mockClear();
+        const controller = new OnlineLudoController();
+        controller.initSession(mockSession, mockSnapshot);
+        const onRemoteRoll = vi.fn();
+        controller.setCallbacks({ onRemoteRoll });
+
+        (controller as any).handleWireMessage(
+          {
+            type: 'ROLL_REQUEST',
+            matchId: 'room-test',
+            seatIndex: 1,
+            forceSix: val,
+            timestamp: Date.now(),
+          },
+          'guest-2'
+        );
+
+        expect(onRemoteRoll).toHaveBeenCalledTimes(1);
+        expect(onRemoteRoll).toHaveBeenCalledWith(0, 1, false);
+
+        const rejectionCall = sendToPeerSpy.mock.calls.find((call) => (call[1] as any)?.type === 'ACTION_REJECTED');
+        expect(rejectionCall).toBeUndefined();
+      }
+
+      sendToPeerSpy.mockRestore();
     });
   });
 });
