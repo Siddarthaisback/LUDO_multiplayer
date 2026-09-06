@@ -123,6 +123,16 @@ export type WireMessage =
       message: string;
     }
   | {
+      type: 'TOKEN_MOVE';
+      matchId: string;
+      moveId: string;
+      seatIndex: number;
+      tokenId: number;
+      fromStep: number;
+      toStep: number;
+      baseRevision: number;
+    }
+  | {
       type: 'ACTION_REJECTED';
       matchId: string;
       actionType: 'ROLL' | 'MOVE';

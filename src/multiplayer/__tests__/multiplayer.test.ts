@@ -971,4 +971,362 @@ describe('OnlineLudoController & Turn Authority', () => {
 
     sendToPeerSpy.mockRestore();
   });
+
+  it('broadcasts TOKEN_MOVE on host and validates/deduplicates TOKEN_MOVE on guest', () => {
+    const hostBroadcastSpy = vi.spyOn(peerTransport, 'broadcastFromHost').mockImplementation(() => {});
+
+    const testSession: MultiplayerSession = {
+      matchId: 'match-anim-01',
+      myPeerId: 'peer-host',
+      mySeatIndex: 0,
+      isHost: true,
+      roomCode: 'ANIM01',
+      players: [
+        { id: 'p1', name: 'Host', color: 'red', avatar: '👑', type: 'human' },
+        { id: 'p2', name: 'Guest', color: 'green', avatar: '🎮', type: 'human' },
+      ],
+      options: {
+        requireSixToStart: true,
+        bonusTurnOnSix: true,
+        bonusTurnOnCapture: true,
+        bonusTurnOnHome: true,
+        maxConsecutiveSixes: 3,
+      },
+      seatPeers: { 0: 'peer-host', 1: 'peer-guest-1' },
+    };
+
+    const testSnapshot: GameSnapshot = {
+      matchId: 'match-anim-01',
+      sequence: 5,
+      players: [],
+      activePlayerIndex: 1,
+      diceValue: 6,
+      hasRolled: true,
+      isRolling: false,
+      consecutiveSixes: 0,
+      winner: null,
+      rankings: [],
+    };
+
+    // 1. Host broadcastTokenMove
+    const hostController = new OnlineLudoController();
+    hostController.initSession(testSession, testSnapshot);
+
+    const moveId = hostController.broadcastTokenMove(1, 0, -1, 0);
+    expect(moveId).toBeTruthy();
+    expect(hostBroadcastSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'TOKEN_MOVE',
+        matchId: 'match-anim-01',
+        moveId,
+        seatIndex: 1,
+        tokenId: 0,
+        fromStep: -1,
+        toStep: 0,
+        baseRevision: 5,
+      })
+    );
+
+    // 2. Guest receives valid TOKEN_MOVE from host
+    const onRemoteTokenMove = vi.fn();
+    const guestController = new OnlineLudoController();
+    guestController.initSession(
+      { ...testSession, isHost: false, mySeatIndex: 1, myPeerId: 'peer-guest-1' },
+      testSnapshot
+    );
+    guestController.setCallbacks({ onRemoteTokenMove });
+
+    const guestWireHandler = (guestController as any).handleWireMessage.bind(guestController);
+
+    guestWireHandler(
+      {
+        type: 'TOKEN_MOVE',
+        matchId: 'match-anim-01',
+        moveId: 'move-test-100',
+        seatIndex: 1,
+        tokenId: 0,
+        fromStep: -1,
+        toStep: 0,
+        baseRevision: 5,
+      },
+      'peer-host'
+    );
+
+    expect(onRemoteTokenMove).toHaveBeenCalledTimes(1);
+    expect(onRemoteTokenMove).toHaveBeenCalledWith({
+      moveId: 'move-test-100',
+      seatIndex: 1,
+      tokenId: 0,
+      fromStep: -1,
+      toStep: 0,
+      baseRevision: 5,
+    });
+
+    // 3. Duplicate moveId suppression on guest
+    guestWireHandler(
+      {
+        type: 'TOKEN_MOVE',
+        matchId: 'match-anim-01',
+        moveId: 'move-test-100',
+        seatIndex: 1,
+        tokenId: 0,
+        fromStep: -1,
+        toStep: 0,
+        baseRevision: 5,
+      },
+      'peer-host'
+    );
+    expect(onRemoteTokenMove).toHaveBeenCalledTimes(1); // Still 1, dropped duplicate
+
+    // 4. Unauthorized sender dropped
+    guestWireHandler(
+      {
+        type: 'TOKEN_MOVE',
+        matchId: 'match-anim-01',
+        moveId: 'move-test-101',
+        seatIndex: 1,
+        tokenId: 0,
+        fromStep: -1,
+        toStep: 0,
+        baseRevision: 5,
+      },
+      'peer-unauthorized-imposter'
+    );
+    expect(onRemoteTokenMove).toHaveBeenCalledTimes(1); // Still 1, dropped unauthorized
+
+    // 5. Match ID mismatch dropped
+    guestWireHandler(
+      {
+        type: 'TOKEN_MOVE',
+        matchId: 'wrong-match-999',
+        moveId: 'move-test-102',
+        seatIndex: 1,
+        tokenId: 0,
+        fromStep: -1,
+        toStep: 0,
+        baseRevision: 5,
+      },
+      'peer-host'
+    );
+    expect(onRemoteTokenMove).toHaveBeenCalledTimes(1); // Still 1, dropped wrong match
+
+    // 6. Malformed payload dropped (invalid seat index)
+    guestWireHandler(
+      {
+        type: 'TOKEN_MOVE',
+        matchId: 'match-anim-01',
+        moveId: 'move-test-103',
+        seatIndex: 99, // Invalid seat index
+        tokenId: 0,
+        fromStep: -1,
+        toStep: 0,
+        baseRevision: 5,
+      },
+      'peer-host'
+    );
+    expect(onRemoteTokenMove).toHaveBeenCalledTimes(1); // Dropped malformed seat
+
+    // 7. Malformed payload: empty moveId
+    guestWireHandler(
+      {
+        type: 'TOKEN_MOVE',
+        matchId: 'match-anim-01',
+        moveId: '',
+        seatIndex: 1,
+        tokenId: 0,
+        fromStep: -1,
+        toStep: 0,
+        baseRevision: 5,
+      },
+      'peer-host'
+    );
+    expect(onRemoteTokenMove).toHaveBeenCalledTimes(1); // Dropped empty moveId
+
+    // 7b. Malformed payload: whitespace-only moveId
+    guestWireHandler(
+      {
+        type: 'TOKEN_MOVE',
+        matchId: 'match-anim-01',
+        moveId: '   \t  ',
+        seatIndex: 1,
+        tokenId: 0,
+        fromStep: -1,
+        toStep: 0,
+        baseRevision: 5,
+      },
+      'peer-host'
+    );
+    expect(onRemoteTokenMove).toHaveBeenCalledTimes(1); // Dropped whitespace-only moveId
+
+    // 8. Malformed payload: invalid step ordering / range (fromStep 10, toStep 5)
+    guestWireHandler(
+      {
+        type: 'TOKEN_MOVE',
+        matchId: 'match-anim-01',
+        moveId: 'move-test-104',
+        seatIndex: 1,
+        tokenId: 0,
+        fromStep: 10,
+        toStep: 5, // Backwards
+        baseRevision: 5,
+      },
+      'peer-host'
+    );
+    expect(onRemoteTokenMove).toHaveBeenCalledTimes(1); // Dropped backwards step
+
+    // 9. Malformed payload: hop > 6 steps
+    guestWireHandler(
+      {
+        type: 'TOKEN_MOVE',
+        matchId: 'match-anim-01',
+        moveId: 'move-test-105',
+        seatIndex: 1,
+        tokenId: 0,
+        fromStep: 10,
+        toStep: 18, // 8 steps > 6
+        baseRevision: 5,
+      },
+      'peer-host'
+    );
+    expect(onRemoteTokenMove).toHaveBeenCalledTimes(1); // Dropped hop > 6
+
+    // 10. Malformed payload: out-of-range baseRevision when sequence is 5 (max 55)
+    guestWireHandler(
+      {
+        type: 'TOKEN_MOVE',
+        matchId: 'match-anim-01',
+        moveId: 'move-test-106',
+        seatIndex: 1,
+        tokenId: 0,
+        fromStep: 0,
+        toStep: 4,
+        baseRevision: 999, // Wildly out of range (> lastSequence + 50)
+      },
+      'peer-host'
+    );
+    expect(onRemoteTokenMove).toHaveBeenCalledTimes(1); // Dropped out of bounds revision
+
+    // 11. Malformed payload: out-of-range baseRevision when sequence is 0 (max 50)
+    const guestSeqZeroController = new OnlineLudoController();
+    guestSeqZeroController.initSession(
+      { ...testSession, isHost: false, mySeatIndex: 1, myPeerId: 'peer-guest-1' },
+      { ...testSnapshot, sequence: 0 }
+    );
+    const onSeqZeroTokenMove = vi.fn();
+    guestSeqZeroController.setCallbacks({ onRemoteTokenMove: onSeqZeroTokenMove });
+    const guestSeqZeroWireHandler = (guestSeqZeroController as any).handleWireMessage.bind(guestSeqZeroController);
+
+    guestSeqZeroWireHandler(
+      {
+        type: 'TOKEN_MOVE',
+        matchId: 'match-anim-01',
+        moveId: 'move-test-107',
+        seatIndex: 1,
+        tokenId: 0,
+        fromStep: 0,
+        toStep: 4,
+        baseRevision: 999, // Out of bounds even when lastSequence === 0
+      },
+      'peer-host'
+    );
+    expect(onSeqZeroTokenMove).not.toHaveBeenCalled(); // Dropped unbounded revision on seq 0
+
+    // 12. True LRU recency promotion and single-overflow eviction test
+    const lruController = new OnlineLudoController();
+    lruController.initSession(
+      { ...testSession, isHost: false, mySeatIndex: 1, myPeerId: 'peer-guest-1' },
+      testSnapshot
+    );
+    const lruWireHandler = (lruController as any).handleWireMessage.bind(lruController);
+
+    // Add move-oldest (initial LRU), then move-second
+    lruWireHandler(
+      {
+        type: 'TOKEN_MOVE',
+        matchId: 'match-anim-01',
+        moveId: 'move-oldest',
+        seatIndex: 1,
+        tokenId: 0,
+        fromStep: 0,
+        toStep: 1,
+        baseRevision: 5,
+      },
+      'peer-host'
+    );
+    lruWireHandler(
+      {
+        type: 'TOKEN_MOVE',
+        matchId: 'match-anim-01',
+        moveId: 'move-second',
+        seatIndex: 1,
+        tokenId: 0,
+        fromStep: 0,
+        toStep: 1,
+        baseRevision: 5,
+      },
+      'peer-host'
+    );
+
+    // Fill up to capacity (200 total items: move-oldest, move-second, and 198 fill items)
+    for (let i = 3; i <= 200; i++) {
+      lruWireHandler(
+        {
+          type: 'TOKEN_MOVE',
+          matchId: 'match-anim-01',
+          moveId: `move-fill-${i}`,
+          seatIndex: 1,
+          tokenId: 0,
+          fromStep: 0,
+          toStep: 1,
+          baseRevision: 5,
+        },
+        'peer-host'
+      );
+    }
+
+    const lruSet = (lruController as any).processedMoveIds as Set<string>;
+    expect(lruSet.size).toBe(200);
+    expect(lruSet.has('move-oldest')).toBe(true);
+    expect(lruSet.has('move-second')).toBe(true);
+
+    // Re-access move-oldest: duplicate hit MUST promote it to MRU (end of Set)
+    lruWireHandler(
+      {
+        type: 'TOKEN_MOVE',
+        matchId: 'match-anim-01',
+        moveId: 'move-oldest',
+        seatIndex: 1,
+        tokenId: 0,
+        fromStep: 0,
+        toStep: 1,
+        baseRevision: 5,
+      },
+      'peer-host'
+    );
+
+    // Send single overflow item (201st unique move)
+    lruWireHandler(
+      {
+        type: 'TOKEN_MOVE',
+        matchId: 'match-anim-01',
+        moveId: 'move-overflow-201',
+        seatIndex: 1,
+        tokenId: 0,
+        fromStep: 0,
+        toStep: 1,
+        baseRevision: 5,
+      },
+      'peer-host'
+    );
+
+    expect(lruSet.size).toBe(200);
+    // move-second was NOT refreshed, so it was the true LRU and was evicted!
+    expect(lruSet.has('move-second')).toBe(false);
+    // move-oldest WAS refreshed, so it was promoted to MRU and survives!
+    expect(lruSet.has('move-oldest')).toBe(true);
+    // new overflow item is present
+    expect(lruSet.has('move-overflow-201')).toBe(true);
+
+    hostBroadcastSpy.mockRestore();
+  });
 });

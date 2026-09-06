@@ -18,7 +18,7 @@ import { derivePathPreview } from './ludoMotion';
 import { getLudoVisualPosition } from './ludoGeometry';
 import { LudoSetupModal } from './ui/LudoSetupModal';
 import { Wifi } from 'lucide-react';
-import { MultiplayerSession } from '../../multiplayer/protocol';
+import { MultiplayerSession, GameSnapshot } from '../../multiplayer/protocol';
 import { onlineLudoController } from '../../multiplayer/onlineLudoController';
 
 const DICE_HOLD_THRESHOLD_MS = 500;
@@ -27,7 +27,7 @@ const BOT_MOVE_DELAY_MS = 750;
 const DICE_ROLL_DURATION_MS = 600;
 const TOKEN_HOP_DURATION_MS = 200;
 const PASS_TURN_DELAY_MS = 1500;
-const AFTER_MOVE_DELAY_MS = 500;
+const AFTER_MOVE_DELAY_MS = 600;
 
 interface LudoGameProps {
   initialPlayers: PlayerConfig[];
@@ -134,6 +134,8 @@ export const LudoGame: React.FC<LudoGameProps> = ({
   const hasHandledReleaseRef = useRef<boolean>(false);
   const handleRollDiceRef = useRef<(fromRemote?: boolean, forceSix?: boolean, desiredRoll?: number, actingSeatIndex?: number) => void>(() => {});
   const handleSelectTokenRef = useRef<(tokenId: number, fromRemote?: boolean, actingSeatIndex?: number) => void>(() => {});
+  const pendingSnapshotRef = useRef<any>(null);
+  const animateRemoteMoveRef = useRef<(seatIndex: number, tokenId: number, fromStep: number, toStep: number) => Promise<void>>(() => Promise.resolve());
 
   // Determine whether an action can execute on the current node
   const canExecuteLocally = (targetPlayerIndex: number, fromRemote: boolean) =>
@@ -144,12 +146,59 @@ export const LudoGame: React.FC<LudoGameProps> = ({
     return () => {
       currentMoveSessionRef.current++;
       currentRollSessionRef.current++;
+      pendingSnapshotRef.current = null;
       if (botActionTimerRef.current) clearTimeout(botActionTimerRef.current);
       if (diceRollTimerRef.current) clearTimeout(diceRollTimerRef.current);
       if (turnTimerRef.current) clearTimeout(turnTimerRef.current);
       if (guestRollTimeoutRef.current) clearTimeout(guestRollTimeoutRef.current);
     };
   }, []);
+
+  const applyStateSnapshot = (snapshot: GameSnapshot) => {
+    currentMoveSessionRef.current++;
+    activePlayerIndexRef.current = snapshot.activePlayerIndex;
+    hasRolledRef.current = snapshot.hasRolled;
+    isRollingRef.current = snapshot.isRolling;
+    playersRef.current = snapshot.players;
+    diceValueRef.current = snapshot.diceValue;
+
+    setPlayers(snapshot.players);
+    setActivePlayerIndex(snapshot.activePlayerIndex);
+    setDiceValue(snapshot.diceValue);
+    setHasRolled(snapshot.hasRolled);
+    setIsRolling(snapshot.isRolling);
+    setConsecutiveSixes(snapshot.consecutiveSixes);
+    if (snapshot.winner) setWinner(snapshot.winner);
+    if (snapshot.rankings) setRankings(snapshot.rankings);
+
+    if (snapshot.hasRolled && snapshot.activePlayerIndex === multiplayerSession?.mySeatIndex) {
+      const myPlayer = snapshot.players[snapshot.activePlayerIndex];
+      const legalMoves = LudoEngine.getValidMoves(myPlayer, snapshot.diceValue, snapshot.players, options);
+      setValidMoves(legalMoves);
+      validMovesRef.current = legalMoves;
+      if (legalMoves.length === 0) {
+        setTurnPassNotice(`Rolled ${snapshot.diceValue} — No Moves Available`);
+      } else {
+        setTurnPassNotice(null);
+      }
+    } else {
+      setValidMoves([]);
+      validMovesRef.current = [];
+      if (snapshot.hasRolled) {
+        const activeP = snapshot.players[snapshot.activePlayerIndex];
+        if (activeP) {
+          const moves = LudoEngine.getValidMoves(activeP, snapshot.diceValue, snapshot.players, options);
+          if (moves.length === 0) {
+            setTurnPassNotice(`Rolled ${snapshot.diceValue} — No Moves Available`);
+          } else {
+            setTurnPassNotice(null);
+          }
+        }
+      } else {
+        setTurnPassNotice(null);
+      }
+    }
+  };
 
   // Online Multiplayer Controller Callback Registration
   useEffect(() => {
@@ -166,58 +215,27 @@ export const LudoGame: React.FC<LudoGameProps> = ({
           handleSelectTokenRef.current(tokenId, true, seatIndex);
         }
       },
+      onRemoteTokenMove: (data) => {
+        if (!multiplayerSession.isHost) {
+          animateRemoteMoveRef.current(data.seatIndex, data.tokenId, data.fromStep, data.toStep);
+        }
+      },
       onRemoteActionRejected: (_actionType: 'ROLL' | 'MOVE', reason: string) => {
         if (guestRollTimeoutRef.current) clearTimeout(guestRollTimeoutRef.current);
         setIsRolling(false);
         isRollingRef.current = false;
+        setIsAnimatingMove(false);
+        isAnimatingMoveRef.current = false;
         setTurnPassNotice(`Action rejected: ${reason}`);
         setTimeout(() => setTurnPassNotice(null), 2500);
       },
       onStateSnapshot: (snapshot) => {
         if (guestRollTimeoutRef.current) clearTimeout(guestRollTimeoutRef.current);
-        currentMoveSessionRef.current++;
-        activePlayerIndexRef.current = snapshot.activePlayerIndex;
-        hasRolledRef.current = snapshot.hasRolled;
-        isRollingRef.current = snapshot.isRolling;
-        playersRef.current = snapshot.players;
-        diceValueRef.current = snapshot.diceValue;
-
-        setPlayers(snapshot.players);
-        setActivePlayerIndex(snapshot.activePlayerIndex);
-        setDiceValue(snapshot.diceValue);
-        setHasRolled(snapshot.hasRolled);
-        setIsRolling(snapshot.isRolling);
-        setConsecutiveSixes(snapshot.consecutiveSixes);
-        if (snapshot.winner) setWinner(snapshot.winner);
-        if (snapshot.rankings) setRankings(snapshot.rankings);
-
-        if (snapshot.hasRolled && snapshot.activePlayerIndex === multiplayerSession.mySeatIndex) {
-          const myPlayer = snapshot.players[snapshot.activePlayerIndex];
-          const legalMoves = LudoEngine.getValidMoves(myPlayer, snapshot.diceValue, snapshot.players, options);
-          setValidMoves(legalMoves);
-          validMovesRef.current = legalMoves;
-          if (legalMoves.length === 0) {
-            setTurnPassNotice(`Rolled ${snapshot.diceValue} — No Moves Available`);
-          } else {
-            setTurnPassNotice(null);
-          }
-        } else {
-          setValidMoves([]);
-          validMovesRef.current = [];
-          if (snapshot.hasRolled) {
-            const activeP = snapshot.players[snapshot.activePlayerIndex];
-            if (activeP) {
-              const moves = LudoEngine.getValidMoves(activeP, snapshot.diceValue, snapshot.players, options);
-              if (moves.length === 0) {
-                setTurnPassNotice(`Rolled ${snapshot.diceValue} — No Moves Available`);
-              } else {
-                setTurnPassNotice(null);
-              }
-            }
-          } else {
-            setTurnPassNotice(null);
-          }
+        if (isAnimatingMoveRef.current && !multiplayerSession.isHost) {
+          pendingSnapshotRef.current = snapshot;
+          return;
         }
+        applyStateSnapshot(snapshot);
       },
       onHostDisconnected: (msg) => {
         setNetworkDisconnectError(msg || 'The room host has disconnected.');
@@ -543,6 +561,10 @@ export const LudoGame: React.FC<LudoGameProps> = ({
     if (!canExecuteLocally(targetPlayerIndex, fromRemote)) return;
 
     if (isOnline && !multiplayerSession?.isHost) {
+      setIsAnimatingMove(true);
+      isAnimatingMoveRef.current = true;
+      setValidMoves([]);
+      validMovesRef.current = [];
       onlineLudoController.requestMove(tokenId, targetPlayerIndex);
       return;
     }
@@ -592,6 +614,11 @@ export const LudoGame: React.FC<LudoGameProps> = ({
       return;
     }
 
+    // Broadcast TOKEN_MOVE event so all connected guests animate smoothly in sync!
+    if (multiplayerSession?.isHost) {
+      onlineLudoController.broadcastTokenMove(targetPlayerIndex, tokenId, token.step, move.toStep);
+    }
+
     // Invalidate any prior move transactions and identify this session
     const sessionId = ++currentMoveSessionRef.current;
     isAnimatingMoveRef.current = true;
@@ -623,11 +650,11 @@ export const LudoGame: React.FC<LudoGameProps> = ({
       soundEffects.playSafeSquare();
 
       if (tokenEl && boardWidth > 0) {
-        tokenEl.style.transition = `transform ${hopDuration * 1.5}ms cubic-bezier(0.25, 1, 0.5, 1)`;
+        tokenEl.style.transition = 'transform 420ms cubic-bezier(0.25, 1, 0.5, 1)';
         tokenEl.style.zIndex = '50';
         tokenEl.style.transform = `translate3d(${startTilePos.x * boardWidth}px, ${startTilePos.y * boardWidth}px, 0) translate(-50%, -50%)`;
       }
-      await new Promise((r) => setTimeout(r, hopDuration * 1.5));
+      await new Promise((r) => setTimeout(r, 420));
       if (sessionId !== currentMoveSessionRef.current) return;
     } else {
       // 2. STEP-BY-STEP GPU-ACCELERATED HOPPING (Imperative DOM transform, ZERO React state updates)
@@ -675,6 +702,7 @@ export const LudoGame: React.FC<LudoGameProps> = ({
     // 4. SYNCHRONOUS ATOMIC STATE COMMIT (React renders authoritative positions before any effects)
     if (tokenEl) {
       tokenEl.style.transition = '';
+      tokenEl.style.transform = '';
       tokenEl.style.zIndex = '';
     }
     for (const el of capturedEls) {
@@ -760,9 +788,93 @@ export const LudoGame: React.FC<LudoGameProps> = ({
     }, nextDelay);
   };
 
+  // Smooth remote token move animation on guest clients
+  const animateRemoteMove = async (
+    seatIndex: number,
+    tokenId: number,
+    fromStep: number,
+    toStep: number
+  ) => {
+    let tokenEl: HTMLElement | null = null;
+    try {
+      const sessionId = ++currentMoveSessionRef.current;
+      isAnimatingMoveRef.current = true;
+      validMovesRef.current = [];
+      setTurnPassNotice(null);
+      flushSync(() => {
+        setIsAnimatingMove(true);
+        setValidMoves([]);
+        setHoveredTokenId(null);
+      });
+
+      const currentPlayers = playersRef.current;
+      const currentPlayer = currentPlayers[seatIndex];
+      const playerColor = currentPlayer?.config.color;
+      const tokenKey = playerColor ? `${playerColor}-${tokenId}` : null;
+
+      tokenEl = tokenKey && typeof document !== 'undefined'
+        ? document.getElementById(`ludo-token-${tokenKey}`)
+        : null;
+      const boardEl = tokenEl?.parentElement;
+      const boardWidth = boardEl ? boardEl.clientWidth : 0;
+      const hopDuration = TOKEN_HOP_DURATION_MS;
+
+      if (!currentPlayer || !playerColor) {
+        return;
+      }
+      if (fromStep === -1) {
+        // Opening move: yard to starting cell (420ms smooth glide)
+        const startTilePos = getLudoVisualPosition(playerColor, tokenId, 0, boardStyle);
+        soundEffects.playSafeSquare();
+
+        if (tokenEl && boardWidth > 0) {
+          tokenEl.style.transition = 'transform 420ms cubic-bezier(0.25, 1, 0.5, 1)';
+          tokenEl.style.zIndex = '50';
+          tokenEl.style.transform = `translate3d(${startTilePos.x * boardWidth}px, ${startTilePos.y * boardWidth}px, 0) translate(-50%, -50%)`;
+        }
+        await new Promise((r) => setTimeout(r, 420));
+      } else {
+        // Step-by-step GPU-accelerated hopping
+        if (tokenEl) {
+          tokenEl.style.zIndex = '50';
+        }
+        for (let step = fromStep + 1; step <= toStep; step++) {
+          if (sessionId !== currentMoveSessionRef.current) break;
+          const toPos = getLudoVisualPosition(playerColor, tokenId, step, boardStyle);
+
+          if (tokenEl && boardWidth > 0) {
+            tokenEl.style.transition = `transform ${hopDuration}ms cubic-bezier(0.25, 1, 0.5, 1)`;
+            tokenEl.style.transform = `translate3d(${toPos.x * boardWidth}px, ${toPos.y * boardWidth}px, 0) translate(-50%, -50%)`;
+          }
+
+          soundEffects.playHop(step);
+          await new Promise((r) => setTimeout(r, hopDuration));
+        }
+      }
+    } finally {
+      if (tokenEl) {
+        tokenEl.style.transition = '';
+        tokenEl.style.transform = '';
+        tokenEl.style.zIndex = '';
+      }
+
+      // Always clear animation state flags on every exit path
+      setIsAnimatingMove(false);
+      isAnimatingMoveRef.current = false;
+
+      // Drain and apply any queued authoritative state snapshot
+      if (pendingSnapshotRef.current) {
+        const s = pendingSnapshotRef.current;
+        pendingSnapshotRef.current = null;
+        applyStateSnapshot(s);
+      }
+    }
+  };
+
   useEffect(() => {
     handleRollDiceRef.current = handleRollDice;
     handleSelectTokenRef.current = handleSelectToken;
+    animateRemoteMoveRef.current = animateRemoteMove;
   });
 
   const advanceTurn = (samePlayer: boolean, latestPlayers?: LudoPlayerState[]) => {

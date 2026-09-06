@@ -61,7 +61,7 @@ export const PlayerCornerDock: React.FC<PlayerCornerDockProps> = ({
   isRolling,
   canRoll,
   hasRolled,
-  isAnimatingMove: _isAnimatingMove,
+  isAnimatingMove,
   isAutomatedTurn,
   isOnline,
   isMyOnlineTurn,
@@ -134,24 +134,32 @@ export const PlayerCornerDock: React.FC<PlayerCornerDockProps> = ({
                 <span className="inline-block w-2 h-2 rounded-full bg-amber-400 animate-ping shrink-0" />
                 <span className="truncate">Rolling...</span>
               </div>
+            ) : isAnimatingMove ? (
+              <div className="text-[11px] sm:text-xs font-bold text-emerald-300 flex items-center gap-1.5 mt-0.5">
+                <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-bounce shrink-0" />
+                <span className="truncate">Moving...</span>
+              </div>
             ) : noMovesNotice ? (
               <div className="text-[11px] sm:text-xs font-bold text-amber-300 flex items-center gap-1 mt-0.5">
                 <span className="truncate">{noMovesNotice}</span>
-              </div>
-            ) : isOnline && !isMyOnlineTurn ? (
-              <div className="text-[11px] sm:text-xs font-bold text-amber-400 flex items-center gap-1 mt-0.5">
-                <span>⏳</span>
-                <span className="truncate">Waiting</span>
-              </div>
-            ) : isAutomatedTurn ? (
-              <div className="text-[11px] sm:text-xs font-bold text-purple-300 flex items-center gap-1 mt-0.5">
-                <span className="inline-block w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse shrink-0" />
-                <span className="truncate">Bot Turn</span>
               </div>
             ) : hasRolled ? (
               <div className="text-[11px] sm:text-xs font-bold text-amber-300 flex items-center gap-1 mt-0.5">
                 <span className="text-[#cdb99d]">Rolled:</span>
                 <span className="text-[#f6ead7] font-black">{diceValue}</span>
+                {isOnline && !isMyOnlineTurn && (
+                  <span className="text-amber-400 text-[10px] ml-1 font-medium">(Choosing...)</span>
+                )}
+              </div>
+            ) : isOnline && !isMyOnlineTurn ? (
+              <div className="text-[11px] sm:text-xs font-bold text-amber-400 flex items-center gap-1.5 mt-0.5">
+                <span className="inline-block w-2 h-2 rounded-full bg-amber-400 animate-pulse shrink-0" />
+                <span className="truncate">Thinking...</span>
+              </div>
+            ) : isAutomatedTurn ? (
+              <div className="text-[11px] sm:text-xs font-bold text-purple-300 flex items-center gap-1 mt-0.5">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse shrink-0" />
+                <span className="truncate">Bot Turn</span>
               </div>
             ) : (
               <div className="text-[11px] sm:text-xs font-black uppercase tracking-wider text-emerald-400 flex items-center gap-1.5 mt-0.5">

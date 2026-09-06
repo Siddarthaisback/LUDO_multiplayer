@@ -4,6 +4,14 @@ import { peerTransport } from './peerService';
 export interface OnlineGameCallbacks {
   onRemoteRoll?: (rollValue: number, playerIndex: number, forceSix?: boolean, desiredRoll?: number) => void;
   onRemoteMove?: (tokenId: number, playerIndex: number) => void;
+  onRemoteTokenMove?: (data: {
+    moveId: string;
+    seatIndex: number;
+    tokenId: number;
+    fromStep: number;
+    toStep: number;
+    baseRevision: number;
+  }) => void;
   onStateSnapshot?: (snapshot: GameSnapshot) => void;
   onHostDisconnected?: (message: string) => void;
   onGuestDisconnected?: (seatIndex: number, peerId: string) => void;
@@ -17,6 +25,7 @@ export class OnlineLudoController {
   private lastSequence: number = 0;
   private isActionInFlight: boolean = false;
   private actionInFlightTimeout: any = null;
+  private processedMoveIds = new Set<string>();
   private callbacks: OnlineGameCallbacks = {};
 
   public setCallbacks(cbs: OnlineGameCallbacks) {
@@ -33,6 +42,7 @@ export class OnlineLudoController {
 
   public initSession(session: MultiplayerSession, initialSnapshot: GameSnapshot) {
     this.clearActionInFlight();
+    this.processedMoveIds.clear();
     this.session = session;
     this.currentSnapshot = initialSnapshot;
     this.lastSequence = initialSnapshot.sequence;
@@ -138,6 +148,38 @@ export class OnlineLudoController {
       sequence: this.lastSequence,
       snapshot: sequencedSnapshot,
     });
+  }
+
+  private recordProcessedMoveId(moveId: string) {
+    if (this.processedMoveIds.has(moveId)) {
+      this.processedMoveIds.delete(moveId);
+    }
+    this.processedMoveIds.add(moveId);
+    if (this.processedMoveIds.size > 200) {
+      const oldest = this.processedMoveIds.values().next().value;
+      if (oldest) this.processedMoveIds.delete(oldest);
+    }
+  }
+
+  /**
+   * Host broadcasts authoritative TOKEN_MOVE animation event to all peers
+   */
+  public broadcastTokenMove(seatIndex: number, tokenId: number, fromStep: number, toStep: number): string | null {
+    if (!this.session?.isHost) return null;
+    const moveId = `${this.session.matchId}-${this.lastSequence}-${seatIndex}-${tokenId}-${Date.now()}`;
+    this.recordProcessedMoveId(moveId);
+
+    peerTransport.broadcastFromHost({
+      type: 'TOKEN_MOVE',
+      matchId: this.session.matchId,
+      moveId,
+      seatIndex,
+      tokenId,
+      fromStep,
+      toStep,
+      baseRevision: this.lastSequence,
+    });
+    return moveId;
   }
 
   private armActionInFlightWatchdog(actionType: string) {
@@ -325,6 +367,54 @@ export class OnlineLudoController {
         break;
       }
 
+      case 'TOKEN_MOVE': {
+        // Guest receives token animation event from host
+        if (!this.session?.isHost && msg.matchId === this.session?.matchId) {
+          const expectedHostPeerId = this.session.seatPeers?.[0] || `ludo-room-${this.session.roomCode.toLowerCase()}`;
+          if (senderPeerId !== expectedHostPeerId) {
+            console.warn(`[OnlineLudo] Dropping TOKEN_MOVE from unauthorized sender ${senderPeerId}`);
+            return;
+          }
+
+          // 1. Strict payload and boundary validation BEFORE deduplication
+          const isValidMoveId = typeof msg.moveId === 'string' && msg.moveId.trim().length > 0 && msg.moveId.length <= 128;
+          const isValidSeat = Number.isInteger(msg.seatIndex) && msg.seatIndex >= 0 && msg.seatIndex <= 3;
+          const isValidToken = Number.isInteger(msg.tokenId) && msg.tokenId >= 0 && msg.tokenId <= 3;
+          const isIntegerSteps = Number.isInteger(msg.fromStep) && Number.isInteger(msg.toStep);
+          const isValidStepRange = isIntegerSteps && (
+            (msg.fromStep === -1 && msg.toStep === 0) ||
+            (msg.fromStep >= 0 && msg.toStep > msg.fromStep && msg.toStep <= 56 && (msg.toStep - msg.fromStep) <= 6)
+          );
+          const isValidRevision = Number.isInteger(msg.baseRevision) && msg.baseRevision >= 0;
+          const minRevision = Math.max(0, this.lastSequence - 10);
+          const maxRevision = this.lastSequence + 50;
+          const isRevisionWindowValid = isValidRevision && msg.baseRevision >= minRevision && msg.baseRevision <= maxRevision;
+
+          if (!isValidMoveId || !isValidSeat || !isValidToken || !isValidStepRange || !isRevisionWindowValid) {
+            console.warn(`[OnlineLudo] Dropping malformed or invalid TOKEN_MOVE`);
+            return;
+          }
+
+          // 2. Duplicate suppression with true LRU recency refresh
+          if (this.processedMoveIds.has(msg.moveId)) {
+            this.recordProcessedMoveId(msg.moveId);
+            return;
+          }
+
+          this.recordProcessedMoveId(msg.moveId);
+
+          this.callbacks.onRemoteTokenMove?.({
+            moveId: msg.moveId,
+            seatIndex: msg.seatIndex,
+            tokenId: msg.tokenId,
+            fromStep: msg.fromStep,
+            toStep: msg.toStep,
+            baseRevision: msg.baseRevision,
+          });
+        }
+        break;
+      }
+
       case 'GAME_STATE': {
         // Guest receives authoritative state snapshot from host
         if (!this.session?.isHost && msg.matchId === this.session?.matchId) {
@@ -363,6 +453,7 @@ export class OnlineLudoController {
 
   public endSession() {
     this.clearActionInFlight();
+    this.processedMoveIds.clear();
     this.session = null;
     this.currentSnapshot = null;
     this.lastSequence = 0;
