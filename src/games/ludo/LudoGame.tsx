@@ -37,6 +37,24 @@ interface LudoGameProps {
   multiplayerSession?: MultiplayerSession | null;
 }
 
+// Pure predicate determining whether an action can execute on the current node
+export function canExecuteLudoActionLocally(
+  targetPlayerIndex: number,
+  fromRemote: boolean,
+  isOnline: boolean,
+  multiplayerSession: MultiplayerSession | null | undefined,
+  players: LudoPlayerState[]
+): boolean {
+  if (!isOnline) return true;
+  if (fromRemote) {
+    return Boolean(multiplayerSession?.isHost);
+  }
+  if (multiplayerSession?.isHost && players[targetPlayerIndex]?.config.type === 'bot') {
+    return true;
+  }
+  return multiplayerSession?.mySeatIndex === targetPlayerIndex;
+}
+
 export const LudoGame: React.FC<LudoGameProps> = ({
   initialPlayers,
   options,
@@ -80,6 +98,7 @@ export const LudoGame: React.FC<LudoGameProps> = ({
   const [effects, setEffects] = useState<BoardEffectItem[]>([]);
   const [hoveredTokenId, setHoveredTokenId] = useState<number | null>(null);
   const [isAnimatingMove, setIsAnimatingMove] = useState(false);
+  const [turnPassNotice, setTurnPassNotice] = useState<string | null>(null);
 
   // Synchronized refs to eliminate race conditions and stale closures in network callbacks
   const activePlayerIndexRef = useRef<number>(activePlayerIndex);
@@ -87,6 +106,8 @@ export const LudoGame: React.FC<LudoGameProps> = ({
   const isRollingRef = useRef<boolean>(isRolling);
   const playersRef = useRef<LudoPlayerState[]>(players);
   const isAnimatingMoveRef = useRef<boolean>(isAnimatingMove);
+  const diceValueRef = useRef<number>(diceValue);
+  const validMovesRef = useRef<MoveOption[]>(validMoves);
   const guestRollTimeoutRef = useRef<any>(null);
 
   useEffect(() => {
@@ -95,7 +116,9 @@ export const LudoGame: React.FC<LudoGameProps> = ({
     isRollingRef.current = isRolling;
     playersRef.current = players;
     isAnimatingMoveRef.current = isAnimatingMove;
-  }, [activePlayerIndex, hasRolled, isRolling, players, isAnimatingMove]);
+    diceValueRef.current = diceValue;
+    validMovesRef.current = validMoves;
+  }, [activePlayerIndex, hasRolled, isRolling, players, isAnimatingMove, diceValue, validMoves]);
 
   const activePlayer = players[activePlayerIndex];
   // In online mode, host automates bot turns; in local mode, bots auto-play their turns
@@ -111,6 +134,10 @@ export const LudoGame: React.FC<LudoGameProps> = ({
   const hasHandledReleaseRef = useRef<boolean>(false);
   const handleRollDiceRef = useRef<(fromRemote?: boolean, forceSix?: boolean, desiredRoll?: number, actingSeatIndex?: number) => void>(() => {});
   const handleSelectTokenRef = useRef<(tokenId: number, fromRemote?: boolean, actingSeatIndex?: number) => void>(() => {});
+
+  // Determine whether an action can execute on the current node
+  const canExecuteLocally = (targetPlayerIndex: number, fromRemote: boolean) =>
+    canExecuteLudoActionLocally(targetPlayerIndex, fromRemote, isOnline, multiplayerSession, playersRef.current);
 
   // Invalidate any active move transaction or timer on unmount
   useEffect(() => {
@@ -139,6 +166,13 @@ export const LudoGame: React.FC<LudoGameProps> = ({
           handleSelectTokenRef.current(tokenId, true, seatIndex);
         }
       },
+      onRemoteActionRejected: (_actionType: 'ROLL' | 'MOVE', reason: string) => {
+        if (guestRollTimeoutRef.current) clearTimeout(guestRollTimeoutRef.current);
+        setIsRolling(false);
+        isRollingRef.current = false;
+        setTurnPassNotice(`Action rejected: ${reason}`);
+        setTimeout(() => setTurnPassNotice(null), 2500);
+      },
       onStateSnapshot: (snapshot) => {
         if (guestRollTimeoutRef.current) clearTimeout(guestRollTimeoutRef.current);
         currentMoveSessionRef.current++;
@@ -146,6 +180,7 @@ export const LudoGame: React.FC<LudoGameProps> = ({
         hasRolledRef.current = snapshot.hasRolled;
         isRollingRef.current = snapshot.isRolling;
         playersRef.current = snapshot.players;
+        diceValueRef.current = snapshot.diceValue;
 
         setPlayers(snapshot.players);
         setActivePlayerIndex(snapshot.activePlayerIndex);
@@ -160,8 +195,28 @@ export const LudoGame: React.FC<LudoGameProps> = ({
           const myPlayer = snapshot.players[snapshot.activePlayerIndex];
           const legalMoves = LudoEngine.getValidMoves(myPlayer, snapshot.diceValue, snapshot.players, options);
           setValidMoves(legalMoves);
+          validMovesRef.current = legalMoves;
+          if (legalMoves.length === 0) {
+            setTurnPassNotice(`Rolled ${snapshot.diceValue} — No Moves Available`);
+          } else {
+            setTurnPassNotice(null);
+          }
         } else {
           setValidMoves([]);
+          validMovesRef.current = [];
+          if (snapshot.hasRolled) {
+            const activeP = snapshot.players[snapshot.activePlayerIndex];
+            if (activeP) {
+              const moves = LudoEngine.getValidMoves(activeP, snapshot.diceValue, snapshot.players, options);
+              if (moves.length === 0) {
+                setTurnPassNotice(`Rolled ${snapshot.diceValue} — No Moves Available`);
+              } else {
+                setTurnPassNotice(null);
+              }
+            }
+          } else {
+            setTurnPassNotice(null);
+          }
         }
       },
       onHostDisconnected: (msg) => {
@@ -358,7 +413,7 @@ export const LudoGame: React.FC<LudoGameProps> = ({
       }
       return;
     }
-    if (isOnline && !fromRemote && targetPlayerIndex !== multiplayerSession?.mySeatIndex) return;
+    if (!canExecuteLocally(targetPlayerIndex, fromRemote)) return;
 
     if (isOnline && !multiplayerSession?.isHost) {
       soundEffects.playDiceRoll();
@@ -393,7 +448,7 @@ export const LudoGame: React.FC<LudoGameProps> = ({
         sequence: 0,
         players: playersRef.current,
         activePlayerIndex: targetPlayerIndex,
-        diceValue,
+        diceValue: diceValueRef.current,
         hasRolled: false,
         isRolling: true,
         consecutiveSixes,
@@ -414,6 +469,7 @@ export const LudoGame: React.FC<LudoGameProps> = ({
     diceRollTimerRef.current = setTimeout(() => {
       if (rollSession !== currentRollSessionRef.current) return;
       setDiceValue(roll);
+      diceValueRef.current = roll;
       setIsRolling(false);
       isRollingRef.current = false;
       setHasRolled(true);
@@ -441,6 +497,7 @@ export const LudoGame: React.FC<LudoGameProps> = ({
       // Calculate Valid Moves with options
       const legalMoves = LudoEngine.getValidMoves(currentPlayer, roll, currentPlayers, options);
       setValidMoves(legalMoves);
+      validMovesRef.current = legalMoves;
 
       if (multiplayerSession?.isHost) {
         onlineLudoController.broadcastSnapshot({
@@ -458,13 +515,17 @@ export const LudoGame: React.FC<LudoGameProps> = ({
       }
 
       if (legalMoves.length === 0) {
+        setTurnPassNotice(`Rolled ${roll} — No Moves Available`);
         const nextDelay = PASS_TURN_DELAY_MS;
         if (turnTimerRef.current) clearTimeout(turnTimerRef.current);
         turnTimerRef.current = setTimeout(() => {
           if (rollSession === currentRollSessionRef.current) {
+            setTurnPassNotice(null);
             advanceTurn(false);
           }
         }, nextDelay);
+      } else {
+        setTurnPassNotice(null);
       }
     }, rollDuration);
   };
@@ -479,14 +540,27 @@ export const LudoGame: React.FC<LudoGameProps> = ({
       }
       return;
     }
-    if (isOnline && !fromRemote && targetPlayerIndex !== multiplayerSession?.mySeatIndex) return;
+    if (!canExecuteLocally(targetPlayerIndex, fromRemote)) return;
 
     if (isOnline && !multiplayerSession?.isHost) {
       onlineLudoController.requestMove(tokenId, targetPlayerIndex);
       return;
     }
 
-    const move = validMoves.find((m) => m.tokenId === tokenId);
+    const currentPlayers = playersRef.current;
+    const currentPlayer = currentPlayers[targetPlayerIndex];
+    if (!currentPlayer) {
+      if (multiplayerSession?.isHost) {
+        onlineLudoController.clearActionInFlight();
+      }
+      return;
+    }
+    const currentDice = diceValueRef.current;
+
+    // Authoritatively calculate legal moves for currentPlayer and currentDice
+    const legalMoves = LudoEngine.getValidMoves(currentPlayer, currentDice, currentPlayers, options);
+    validMovesRef.current = legalMoves;
+    const move = legalMoves.find((m) => m.tokenId === tokenId);
     if (!move) {
       if (multiplayerSession?.isHost) {
         onlineLudoController.clearActionInFlight();
@@ -494,9 +568,7 @@ export const LudoGame: React.FC<LudoGameProps> = ({
       return;
     }
 
-    const currentPlayers = playersRef.current;
-    const currentPlayer = currentPlayers[targetPlayerIndex];
-    const token = currentPlayer?.tokens.find((t) => t.id === tokenId);
+    const token = currentPlayer.tokens.find((t) => t.id === tokenId);
     if (!token) {
       if (multiplayerSession?.isHost) {
         onlineLudoController.clearActionInFlight();
@@ -508,7 +580,7 @@ export const LudoGame: React.FC<LudoGameProps> = ({
     const tx = LudoEngine.resolveMoveTransaction(
       targetPlayerIndex,
       tokenId,
-      diceValue,
+      currentDice,
       currentPlayers,
       options,
       rankings.length
@@ -527,6 +599,8 @@ export const LudoGame: React.FC<LudoGameProps> = ({
     // 1. FLUSH PRE-ANIMATION STATE UPDATES IMMEDIATELY
     // Prevents React rerender (from setValidMoves / setIsAnimatingMove) from overwriting
     // the first hop or yard-exit transform with the token's old position
+    validMovesRef.current = [];
+    setTurnPassNotice(null);
     flushSync(() => {
       setIsAnimatingMove(true);
       setValidMoves([]);
@@ -709,10 +783,12 @@ export const LudoGame: React.FC<LudoGameProps> = ({
       }
     }
 
+    setTurnPassNotice(null);
     activePlayerIndexRef.current = nextIdx;
     hasRolledRef.current = false;
     isRollingRef.current = false;
     playersRef.current = currentPlayers;
+    validMovesRef.current = [];
 
     setHasRolled(false);
     setIsRolling(false);
@@ -727,7 +803,7 @@ export const LudoGame: React.FC<LudoGameProps> = ({
         sequence: 0,
         players: currentPlayers,
         activePlayerIndex: nextIdx,
-        diceValue,
+        diceValue: diceValueRef.current,
         hasRolled: false,
         isRolling: false,
         consecutiveSixes: nextConsecutiveSixes,
@@ -919,6 +995,11 @@ export const LudoGame: React.FC<LudoGameProps> = ({
       )}
 
       {/* Main Game Stage with Side Corner Docks */}
+      {turnPassNotice && (
+        <div className="w-full max-w-sm mx-auto px-4 py-1.5 rounded-xl bg-amber-500/20 border border-amber-400/40 text-amber-200 text-xs sm:text-sm font-bold text-center shadow-lg animate-pulse select-none z-30">
+          <span>{turnPassNotice}</span>
+        </div>
+      )}
       <div className="ludo-stage-grid relative z-10">
         {/* Red Home Dock (Top-Left on Desktop, Top-Left on Mobile) */}
         <div className="ludo-area-red self-start">
@@ -942,6 +1023,7 @@ export const LudoGame: React.FC<LudoGameProps> = ({
             onRollKeyUp={handleRollKeyUp}
             onRollClick={handleRollClick}
             onTriggerAutoCapture={handleTriggerAutoCapture}
+            noMovesNotice={activePlayer?.config.color === 'red' ? turnPassNotice : null}
           />
         </div>
 
@@ -967,6 +1049,7 @@ export const LudoGame: React.FC<LudoGameProps> = ({
             onRollKeyUp={handleRollKeyUp}
             onRollClick={handleRollClick}
             onTriggerAutoCapture={handleTriggerAutoCapture}
+            noMovesNotice={activePlayer?.config.color === 'green' ? turnPassNotice : null}
           />
         </div>
 
@@ -1008,6 +1091,7 @@ export const LudoGame: React.FC<LudoGameProps> = ({
             onRollKeyUp={handleRollKeyUp}
             onRollClick={handleRollClick}
             onTriggerAutoCapture={handleTriggerAutoCapture}
+            noMovesNotice={activePlayer?.config.color === 'yellow' ? turnPassNotice : null}
           />
         </div>
 
@@ -1033,6 +1117,7 @@ export const LudoGame: React.FC<LudoGameProps> = ({
             onRollKeyUp={handleRollKeyUp}
             onRollClick={handleRollClick}
             onTriggerAutoCapture={handleTriggerAutoCapture}
+            noMovesNotice={activePlayer?.config.color === 'blue' ? turnPassNotice : null}
           />
         </div>
       </div>

@@ -855,4 +855,113 @@ describe('OnlineLudoController & Turn Authority', () => {
     );
     expect(onStateSnapshot).toHaveBeenCalledTimes(1);
   });
+
+  it('sends ACTION_REJECTED to sender on illegal move request and invokes onRemoteActionRejected on guest', () => {
+    const sendToPeerSpy = vi.spyOn(peerTransport, 'sendToPeer').mockReturnValue(true);
+    const hostController = new OnlineLudoController();
+
+    const hostSession: MultiplayerSession = {
+      roomCode: 'REJ01',
+      matchId: 'match-rej-01',
+      mySeatIndex: 0,
+      myPeerId: 'peer-host',
+      isHost: true,
+      players: [],
+      options: {} as any,
+      seatPeers: { 0: 'peer-host', 1: 'peer-guest-1' },
+    };
+
+    const activeSnapshot: GameSnapshot = {
+      matchId: 'match-rej-01',
+      sequence: 1,
+      players: [
+        {
+          config: { id: 'p0', name: 'Host', color: 'red', type: 'human', avatar: '👑', isHost: true },
+          tokens: [{ id: 0, color: 'red', step: -1, status: 'yard', trackIndex: -1 }],
+          tokensHome: 0,
+          tokensCaptured: 0,
+          tokensLost: 0,
+        },
+        {
+          config: { id: 'p1', name: 'Guest', color: 'green', type: 'human', avatar: '🦊' },
+          tokens: [{ id: 0, color: 'green', step: 0, status: 'track', trackIndex: 13 }],
+          tokensHome: 0,
+          tokensCaptured: 0,
+          tokensLost: 0,
+        },
+      ],
+      activePlayerIndex: 0, // Host's turn, not Guest's!
+      diceValue: 6,
+      hasRolled: true,
+      isRolling: false,
+      consecutiveSixes: 0,
+      winner: null,
+      rankings: [],
+    };
+
+    hostController.initSession(hostSession, activeSnapshot);
+    const hostHandler = (hostController as any).handleWireMessage.bind(hostController);
+
+    // Guest sends MOVE_REQUEST during Host's turn
+    hostHandler(
+      {
+        type: 'MOVE_REQUEST',
+        matchId: 'match-rej-01',
+        seatIndex: 1,
+        tokenId: 0,
+        timestamp: Date.now(),
+      },
+      'peer-guest-1'
+    );
+
+    // Host should send ACTION_REJECTED to guest peer
+    expect(sendToPeerSpy).toHaveBeenCalledWith(
+      'peer-guest-1',
+      expect.objectContaining({
+        type: 'ACTION_REJECTED',
+        actionType: 'MOVE',
+        seatIndex: 1,
+        reason: 'Not your turn',
+      })
+    );
+
+    // Verify Guest handles ACTION_REJECTED
+    const onRemoteActionRejected = vi.fn();
+    const guestController = new OnlineLudoController();
+    guestController.initSession(
+      { ...hostSession, mySeatIndex: 1, myPeerId: 'peer-guest-1', isHost: false },
+      activeSnapshot
+    );
+    guestController.setCallbacks({ onRemoteActionRejected });
+
+    const guestHandler = (guestController as any).handleWireMessage.bind(guestController);
+    guestHandler(
+      {
+        type: 'ACTION_REJECTED',
+        matchId: 'match-rej-01',
+        actionType: 'MOVE',
+        seatIndex: 1,
+        reason: 'Not your turn',
+      },
+      'peer-host'
+    );
+
+    expect(onRemoteActionRejected).toHaveBeenCalledWith('MOVE', 'Not your turn');
+
+    // Verify untrusted sender is dropped
+    onRemoteActionRejected.mockClear();
+    guestHandler(
+      {
+        type: 'ACTION_REJECTED',
+        matchId: 'match-rej-01',
+        actionType: 'MOVE',
+        seatIndex: 1,
+        reason: 'Spoofed rejection',
+      },
+      'peer-impostor-attacker'
+    );
+    expect(onRemoteActionRejected).not.toHaveBeenCalled();
+
+    sendToPeerSpy.mockRestore();
+  });
 });

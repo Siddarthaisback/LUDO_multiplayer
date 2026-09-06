@@ -121,6 +121,13 @@ export type WireMessage =
   | {
       type: 'HOST_DISCONNECTED';
       message: string;
+    }
+  | {
+      type: 'ACTION_REJECTED';
+      matchId: string;
+      actionType: 'ROLL' | 'MOVE';
+      seatIndex: number;
+      reason: string;
     };
 
 export function normalizeRoomCode(raw: string): string {

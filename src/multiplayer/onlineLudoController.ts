@@ -7,6 +7,7 @@ export interface OnlineGameCallbacks {
   onStateSnapshot?: (snapshot: GameSnapshot) => void;
   onHostDisconnected?: (message: string) => void;
   onGuestDisconnected?: (seatIndex: number, peerId: string) => void;
+  onRemoteActionRejected?: (actionType: 'ROLL' | 'MOVE', reason: string) => void;
   onError?: (message: string) => void;
 }
 
@@ -161,24 +162,63 @@ export class OnlineLudoController {
             return;
           }
           // 1. Verify matchId
-          if (msg.matchId !== this.session.matchId) return;
+          if (msg.matchId !== this.session.matchId) {
+            peerTransport.sendToPeer(senderPeerId, {
+              type: 'ACTION_REJECTED',
+              matchId: this.session.matchId,
+              actionType: 'ROLL',
+              seatIndex: msg.seatIndex,
+              reason: 'Match ID mismatch',
+            });
+            return;
+          }
           // 2. Verify active player turn
-          if (msg.seatIndex !== this.currentSnapshot.activePlayerIndex) return;
+          if (msg.seatIndex !== this.currentSnapshot.activePlayerIndex) {
+            peerTransport.sendToPeer(senderPeerId, {
+              type: 'ACTION_REJECTED',
+              matchId: this.session.matchId,
+              actionType: 'ROLL',
+              seatIndex: msg.seatIndex,
+              reason: 'Not your turn',
+            });
+            return;
+          }
           // 3. Sender authorization check: fail-closed on authoritative seat-to-peer binding
           const authorizedPeer = this.session.seatPeers?.[msg.seatIndex];
           if (!authorizedPeer || authorizedPeer !== senderPeerId) {
             console.warn(`[OnlineLudo] Rejected ROLL_REQUEST: sender ${senderPeerId} does not match authorized peer ${authorizedPeer || 'none'}`);
+            peerTransport.sendToPeer(senderPeerId, {
+              type: 'ACTION_REJECTED',
+              matchId: this.session.matchId,
+              actionType: 'ROLL',
+              seatIndex: msg.seatIndex,
+              reason: 'Unauthorized seat',
+            });
             return;
           }
 
           // 4. Verify game phase: must not have already rolled, not rolling, not game over
           if (this.currentSnapshot.hasRolled || this.currentSnapshot.isRolling || this.currentSnapshot.winner) {
+            peerTransport.sendToPeer(senderPeerId, {
+              type: 'ACTION_REJECTED',
+              matchId: this.session.matchId,
+              actionType: 'ROLL',
+              seatIndex: msg.seatIndex,
+              reason: 'Dice already rolled or in motion',
+            });
             return;
           }
 
           // 5. Validate forceSix property if present
           if (msg.forceSix !== undefined && typeof msg.forceSix !== 'boolean') {
             console.warn(`[OnlineLudo] Rejected malformed ROLL_REQUEST: forceSix must be boolean`);
+            peerTransport.sendToPeer(senderPeerId, {
+              type: 'ACTION_REJECTED',
+              matchId: this.session.matchId,
+              actionType: 'ROLL',
+              seatIndex: msg.seatIndex,
+              reason: 'Malformed forceSix parameter',
+            });
             return;
           }
 
@@ -189,6 +229,13 @@ export class OnlineLudoController {
               validatedDesiredRoll = msg.desiredRoll;
             } else {
               console.warn(`[OnlineLudo] Rejected malformed ROLL_REQUEST: desiredRoll must be integer between 1 and 6`);
+              peerTransport.sendToPeer(senderPeerId, {
+                type: 'ACTION_REJECTED',
+                matchId: this.session.matchId,
+                actionType: 'ROLL',
+                seatIndex: msg.seatIndex,
+                reason: 'Malformed desiredRoll parameter',
+              });
               return;
             }
           }
@@ -196,10 +243,15 @@ export class OnlineLudoController {
           // Mark in-flight with 2.5s watchdog timeout
           this.armActionInFlightWatchdog('ROLL_REQUEST');
           const isForcedSix = typeof msg.forceSix === 'boolean' ? msg.forceSix : false;
-          if (validatedDesiredRoll !== undefined) {
-            this.callbacks.onRemoteRoll?.(0, msg.seatIndex, isForcedSix, validatedDesiredRoll);
-          } else {
-            this.callbacks.onRemoteRoll?.(0, msg.seatIndex, isForcedSix);
+          try {
+            if (validatedDesiredRoll !== undefined) {
+              this.callbacks.onRemoteRoll?.(0, msg.seatIndex, isForcedSix, validatedDesiredRoll);
+            } else {
+              this.callbacks.onRemoteRoll?.(0, msg.seatIndex, isForcedSix);
+            }
+          } catch (err) {
+            console.error('[OnlineLudo] Error in onRemoteRoll handler:', err);
+            this.clearActionInFlight();
           }
         }
         break;
@@ -214,31 +266,84 @@ export class OnlineLudoController {
             return;
           }
           // 1. Verify matchId
-          if (msg.matchId !== this.session.matchId) return;
+          if (msg.matchId !== this.session.matchId) {
+            peerTransport.sendToPeer(senderPeerId, {
+              type: 'ACTION_REJECTED',
+              matchId: this.session.matchId,
+              actionType: 'MOVE',
+              seatIndex: msg.seatIndex,
+              reason: 'Match ID mismatch',
+            });
+            return;
+          }
           // 2. Verify active player turn
-          if (msg.seatIndex !== this.currentSnapshot.activePlayerIndex) return;
+          if (msg.seatIndex !== this.currentSnapshot.activePlayerIndex) {
+            peerTransport.sendToPeer(senderPeerId, {
+              type: 'ACTION_REJECTED',
+              matchId: this.session.matchId,
+              actionType: 'MOVE',
+              seatIndex: msg.seatIndex,
+              reason: 'Not your turn',
+            });
+            return;
+          }
           // 3. Sender authorization check: fail-closed on authoritative seat-to-peer binding
           const authorizedPeer = this.session.seatPeers?.[msg.seatIndex];
           if (!authorizedPeer || authorizedPeer !== senderPeerId) {
             console.warn(`[OnlineLudo] Rejected MOVE_REQUEST: sender ${senderPeerId} does not match authorized peer ${authorizedPeer || 'none'}`);
+            peerTransport.sendToPeer(senderPeerId, {
+              type: 'ACTION_REJECTED',
+              matchId: this.session.matchId,
+              actionType: 'MOVE',
+              seatIndex: msg.seatIndex,
+              reason: 'Unauthorized seat',
+            });
             return;
           }
 
           // 4. Verify game phase: must have rolled, not rolling, not game over
           if (!this.currentSnapshot.hasRolled || this.currentSnapshot.isRolling || this.currentSnapshot.winner) {
+            peerTransport.sendToPeer(senderPeerId, {
+              type: 'ACTION_REJECTED',
+              matchId: this.session.matchId,
+              actionType: 'MOVE',
+              seatIndex: msg.seatIndex,
+              reason: 'Move not allowed in current phase',
+            });
             return;
           }
           // 5. Verify token ownership and ID legality
           if (typeof msg.tokenId !== 'number' || msg.tokenId < 0 || msg.tokenId > 3) {
+            peerTransport.sendToPeer(senderPeerId, {
+              type: 'ACTION_REJECTED',
+              matchId: this.session.matchId,
+              actionType: 'MOVE',
+              seatIndex: msg.seatIndex,
+              reason: 'Invalid token ID',
+            });
             return;
           }
           const activePlayer = this.currentSnapshot.players[msg.seatIndex];
           const token = activePlayer?.tokens.find((t) => t.id === msg.tokenId);
-          if (!token) return;
+          if (!token) {
+            peerTransport.sendToPeer(senderPeerId, {
+              type: 'ACTION_REJECTED',
+              matchId: this.session.matchId,
+              actionType: 'MOVE',
+              seatIndex: msg.seatIndex,
+              reason: 'Token not found',
+            });
+            return;
+          }
 
           // Mark in-flight with 2.5s watchdog timeout
           this.armActionInFlightWatchdog('MOVE_REQUEST');
-          this.callbacks.onRemoteMove?.(msg.tokenId, msg.seatIndex);
+          try {
+            this.callbacks.onRemoteMove?.(msg.tokenId, msg.seatIndex);
+          } catch (err) {
+            console.error('[OnlineLudo] Error in onRemoteMove handler:', err);
+            this.clearActionInFlight();
+          }
         }
         break;
       }
@@ -250,6 +355,18 @@ export class OnlineLudoController {
             this.lastSequence = msg.sequence;
             this.currentSnapshot = msg.snapshot;
             this.callbacks.onStateSnapshot?.(msg.snapshot);
+          }
+        }
+        break;
+      }
+
+      case 'ACTION_REJECTED': {
+        if (!this.session?.isHost && msg.matchId === this.session?.matchId) {
+          const expectedHostPeerId = this.session.seatPeers?.[0] || `ludo-room-${this.session.roomCode.toLowerCase()}`;
+          if (senderPeerId === expectedHostPeerId) {
+            this.callbacks.onRemoteActionRejected?.(msg.actionType, msg.reason);
+          } else {
+            console.warn(`[OnlineLudo] Dropping ACTION_REJECTED from unauthorized sender ${senderPeerId}`);
           }
         }
         break;

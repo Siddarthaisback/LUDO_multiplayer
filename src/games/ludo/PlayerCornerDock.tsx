@@ -24,6 +24,7 @@ interface PlayerCornerDockProps {
   onRollKeyUp: (e: React.KeyboardEvent) => void;
   onRollClick: () => void;
   onTriggerAutoCapture?: () => void;
+  noMovesNotice?: string | null;
 }
 
 export function getDockDiceAriaLabel({
@@ -71,6 +72,7 @@ export const PlayerCornerDock: React.FC<PlayerCornerDockProps> = ({
   onRollKeyUp,
   onRollClick,
   onTriggerAutoCapture,
+  noMovesNotice,
 }) => {
   const colorInfo = COLOR_MAP[color];
 
@@ -127,7 +129,16 @@ export const PlayerCornerDock: React.FC<PlayerCornerDockProps> = ({
             >
               {playerState.config.name}
             </div>
-            {isOnline && !isMyOnlineTurn ? (
+            {isRolling ? (
+              <div className="text-[11px] sm:text-xs font-bold text-amber-300 flex items-center gap-1.5 mt-0.5">
+                <span className="inline-block w-2 h-2 rounded-full bg-amber-400 animate-ping shrink-0" />
+                <span className="truncate">Rolling...</span>
+              </div>
+            ) : noMovesNotice ? (
+              <div className="text-[11px] sm:text-xs font-bold text-amber-300 flex items-center gap-1 mt-0.5">
+                <span className="truncate">{noMovesNotice}</span>
+              </div>
+            ) : isOnline && !isMyOnlineTurn ? (
               <div className="text-[11px] sm:text-xs font-bold text-amber-400 flex items-center gap-1 mt-0.5">
                 <span>⏳</span>
                 <span className="truncate">Waiting</span>
@@ -136,11 +147,6 @@ export const PlayerCornerDock: React.FC<PlayerCornerDockProps> = ({
               <div className="text-[11px] sm:text-xs font-bold text-purple-300 flex items-center gap-1 mt-0.5">
                 <span className="inline-block w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse shrink-0" />
                 <span className="truncate">Bot Turn</span>
-              </div>
-            ) : isRolling ? (
-              <div className="text-[11px] sm:text-xs font-bold text-amber-300 flex items-center gap-1.5 mt-0.5">
-                <span className="inline-block w-2 h-2 rounded-full bg-amber-400 animate-ping shrink-0" />
-                <span className="truncate">Rolling...</span>
               </div>
             ) : hasRolled ? (
               <div className="text-[11px] sm:text-xs font-bold text-amber-300 flex items-center gap-1 mt-0.5">
