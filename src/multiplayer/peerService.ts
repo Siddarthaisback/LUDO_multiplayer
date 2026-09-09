@@ -10,6 +10,22 @@ export interface PeerEventHandlers {
   onPeerLeave?: (peerId: string) => void;
 }
 
+export const DEFAULT_ICE_SERVERS: RTCIceServer[] = [
+  { urls: 'stun:stun.l.google.com:19302' },
+  { urls: 'stun:stun1.l.google.com:19302' },
+  { urls: 'stun:stun2.l.google.com:19302' },
+  { urls: 'stun:global.stun.twilio.com:3478' },
+  {
+    urls: [
+      'turn:openrelay.metered.ca:80',
+      'turn:openrelay.metered.ca:443',
+      'turn:openrelay.metered.ca:443?transport=tcp',
+    ],
+    username: 'openrelayproject',
+    credential: 'openrelayproject',
+  },
+];
+
 export class PeerTransport {
   private peer: Peer | null = null;
   private guestConns: Map<string, DataConnection> = new Map();
@@ -59,11 +75,7 @@ export class PeerTransport {
         this.peer = new Peer(targetPeerId, {
           debug: 1,
           config: {
-            iceServers: [
-              { urls: 'stun:stun.l.google.com:19302' },
-              { urls: 'stun:stun1.l.google.com:19302' },
-              { urls: 'stun:stun2.l.google.com:19302' },
-            ],
+            iceServers: DEFAULT_ICE_SERVERS,
           },
         });
 
@@ -128,10 +140,7 @@ export class PeerTransport {
         this.peer = new Peer({
           debug: 1,
           config: {
-            iceServers: [
-              { urls: 'stun:stun.l.google.com:19302' },
-              { urls: 'stun:stun1.l.google.com:19302' },
-            ],
+            iceServers: DEFAULT_ICE_SERVERS,
           },
         });
 

@@ -6,6 +6,7 @@ import {
   MultiplayerSession,
   GameSnapshot,
   PROTOCOL_VERSION,
+  WireMessage,
 } from '../protocol';
 import { LobbyController } from '../lobbyController';
 import { OnlineLudoController } from '../onlineLudoController';
@@ -276,6 +277,10 @@ describe('OnlineLudoController & Turn Authority', () => {
         bonusTurnOnCapture: true,
         bonusTurnOnHome: true,
         maxConsecutiveSixes: 3,
+      },
+      seatPeers: {
+        0: 'peer-host',
+        1: 'peer-guest',
       },
     };
 
@@ -1329,4 +1334,129 @@ describe('OnlineLudoController & Turn Authority', () => {
 
     hostBroadcastSpy.mockRestore();
   });
+
+  it('broadcasts and triggers onChatEmote callback upon CHAT_EMOTE messages', () => {
+    const onChatEmote = vi.fn();
+    const chatController = new OnlineLudoController();
+    const sendToHostSpy = vi.spyOn(peerTransport, 'sendToHost').mockImplementation(() => true);
+    const broadcastSpy = vi.spyOn(peerTransport, 'broadcastFromHost').mockImplementation(() => {});
+
+    chatController.initSession(mockSession, mockSnapshot);
+    chatController.setCallbacks({ onChatEmote });
+
+    // Guest sends emote
+    chatController.sendChatEmote('Guest', 'Chito chal yar! ⏳', '😂');
+    expect(sendToHostSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'CHAT_EMOTE',
+        senderName: 'Guest',
+        message: 'Chito chal yar! ⏳',
+        emoji: '😂',
+        seatIndex: 1,
+      })
+    );
+    expect(onChatEmote).toHaveBeenCalledWith({
+      seatIndex: 1,
+      senderName: 'Guest',
+      message: 'Chito chal yar! ⏳',
+      emoji: '😂',
+    });
+
+    // Test host relay
+    let wireHandler: (msg: WireMessage, senderPeerId: string) => void = () => {};
+    vi.spyOn(peerTransport, 'setHandlers').mockImplementation((handlers) => {
+      if (handlers.onMessage) wireHandler = handlers.onMessage;
+    });
+
+    const hostController = new OnlineLudoController();
+    const hostChatEmote = vi.fn();
+    hostController.initSession(
+      {
+        ...mockSession,
+        isHost: true,
+        mySeatIndex: 0,
+        myPeerId: 'peer-host',
+        seatPeers: { 0: 'peer-host', 1: 'peer-guest' },
+      },
+      mockSnapshot
+    );
+    hostController.setCallbacks({ onChatEmote: hostChatEmote });
+
+    // 1. Imposter peer tries to send emote for seat 1 -> MUST BE REJECTED
+    wireHandler(
+      {
+        type: 'CHAT_EMOTE',
+        matchId: 'match-01',
+        seatIndex: 1,
+        senderName: 'Imposter',
+        message: 'Hacked!',
+        timestamp: Date.now(),
+      },
+      'peer-imposter-evil'
+    );
+    expect(broadcastSpy).not.toHaveBeenCalled();
+    expect(hostChatEmote).not.toHaveBeenCalled();
+
+    // 2. Malformed payload (e.g. object as message or out-of-range seat) -> MUST BE REJECTED
+    wireHandler(
+      {
+        type: 'CHAT_EMOTE',
+        matchId: 'match-01',
+        seatIndex: 99 as any,
+        senderName: 'Guest',
+        message: 'Invalid seat',
+        timestamp: Date.now(),
+      },
+      'peer-guest'
+    );
+    expect(broadcastSpy).not.toHaveBeenCalled();
+
+    // 3. Authorized sender sends valid emote -> ACCEPTED AND RELAYED
+    wireHandler(
+      {
+        type: 'CHAT_EMOTE',
+        matchId: 'match-01',
+        seatIndex: 1,
+        senderName: 'Guest',
+        message: 'Aba marxa! 🎯',
+        emoji: '🔥',
+        timestamp: Date.now(),
+      },
+      'peer-guest'
+    );
+
+    expect(broadcastSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'CHAT_EMOTE',
+        message: 'Aba marxa! 🎯',
+        emoji: '🔥',
+      })
+    );
+    expect(hostChatEmote).toHaveBeenCalledWith({
+      seatIndex: 1,
+      senderName: 'Guest',
+      message: 'Aba marxa! 🎯',
+      emoji: '🔥',
+    });
+
+    // 4. Verify guest deduplication: when guest receives broadcast of their own emote, onChatEmote is NOT triggered again
+    (chatController as any).handleWireMessage(
+      {
+        type: 'CHAT_EMOTE',
+        id: 'msg-01',
+        matchId: 'match-01',
+        seatIndex: 1, // matches guest mySeatIndex
+        senderName: 'Guest',
+        message: 'Chito chal yar! ⏳',
+        emoji: '😂',
+        timestamp: Date.now(),
+      },
+      'peer-host'
+    );
+    expect(onChatEmote).toHaveBeenCalledTimes(1); // Exactly 1 (no duplicate echo)
+
+    sendToHostSpy.mockRestore();
+    broadcastSpy.mockRestore();
+  });
 });
+

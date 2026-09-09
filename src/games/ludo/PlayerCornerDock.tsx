@@ -25,6 +25,7 @@ interface PlayerCornerDockProps {
   onRollClick: () => void;
   onTriggerAutoCapture?: () => void;
   noMovesNotice?: string | null;
+  turnTimeRemaining?: number;
 }
 
 export function getDockDiceAriaLabel({
@@ -73,6 +74,7 @@ export const PlayerCornerDock: React.FC<PlayerCornerDockProps> = ({
   onRollClick,
   onTriggerAutoCapture,
   noMovesNotice,
+  turnTimeRemaining,
 }) => {
   const colorInfo = COLOR_MAP[color];
 
@@ -115,12 +117,44 @@ export const PlayerCornerDock: React.FC<PlayerCornerDockProps> = ({
       >
         {/* Player Avatar & Identity */}
         <div className="flex items-center gap-2 sm:gap-2.5 min-w-0 flex-1 mr-1.5 sm:mr-2">
-          <div
-            className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center text-base sm:text-lg shadow-inner border border-white/30 shrink-0 relative"
-            style={{ backgroundColor: colorInfo.primary }}
-          >
-            {playerState.config.avatar}
-            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-emerald-400 border border-white animate-pulse" />
+          <div className="relative shrink-0 flex items-center justify-center">
+            {typeof turnTimeRemaining === 'number' && turnTimeRemaining >= 0 && (
+              <svg className="absolute -inset-1.5 w-11 h-11 sm:w-13 sm:h-13 -rotate-90 pointer-events-none" viewBox="0 0 44 44">
+                <circle
+                  cx="22"
+                  cy="22"
+                  r="19"
+                  fill="none"
+                  stroke="rgba(255,255,255,0.12)"
+                  strokeWidth="2.5"
+                />
+                <circle
+                  cx="22"
+                  cy="22"
+                  r="19"
+                  fill="none"
+                  stroke={turnTimeRemaining <= 4 ? '#ef4444' : turnTimeRemaining <= 8 ? '#f59e0b' : '#10b981'}
+                  strokeWidth="2.5"
+                  strokeDasharray={119.4}
+                  strokeDashoffset={119.4 * (1 - Math.max(0, Math.min(15, turnTimeRemaining)) / 15)}
+                  strokeLinecap="round"
+                  className="transition-all duration-300"
+                />
+              </svg>
+            )}
+            <div
+              className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center text-base sm:text-lg shadow-inner border border-white/30 shrink-0 relative"
+              style={{ backgroundColor: colorInfo.primary }}
+            >
+              {playerState.config.avatar}
+              {typeof turnTimeRemaining === 'number' && turnTimeRemaining <= 5 ? (
+                <span className="absolute -top-1.5 -right-1.5 px-1 rounded-full bg-red-600 text-white text-[9px] font-black border border-white animate-pulse">
+                  {turnTimeRemaining}s
+                </span>
+              ) : (
+                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-emerald-400 border border-white animate-pulse" />
+              )}
+            </div>
           </div>
           <div className="min-w-0 flex-1">
             <div

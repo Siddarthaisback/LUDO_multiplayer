@@ -16,6 +16,7 @@ export interface OnlineGameCallbacks {
   onHostDisconnected?: (message: string) => void;
   onGuestDisconnected?: (seatIndex: number, peerId: string) => void;
   onRemoteActionRejected?: (actionType: 'ROLL' | 'MOVE', reason: string) => void;
+  onChatEmote?: (data: { seatIndex: number; senderName: string; message?: string; emoji?: string }) => void;
   onError?: (message: string) => void;
 }
 
@@ -27,9 +28,37 @@ export class OnlineLudoController {
   private actionInFlightTimeout: any = null;
   private processedMoveIds = new Set<string>();
   private callbacks: OnlineGameCallbacks = {};
+  private processedEmoteIds = new Set<string>();
 
   public setCallbacks(cbs: OnlineGameCallbacks) {
     this.callbacks = cbs;
+  }
+
+  public sendChatEmote(senderName: string, message?: string, emoji?: string) {
+    if (!this.session) return;
+    const emoteId = `${this.session.matchId}-${this.session.mySeatIndex}-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+    this.processedEmoteIds.add(emoteId);
+    if (this.processedEmoteIds.size > 150) {
+      const oldest = this.processedEmoteIds.values().next().value;
+      if (oldest) this.processedEmoteIds.delete(oldest);
+    }
+    const msg: WireMessage = {
+      type: 'CHAT_EMOTE',
+      id: emoteId,
+      matchId: this.session.matchId,
+      seatIndex: this.session.mySeatIndex,
+      senderName,
+      message,
+      emoji,
+      timestamp: Date.now(),
+    };
+    if (this.session.isHost) {
+      peerTransport.broadcastFromHost(msg);
+      this.callbacks.onChatEmote?.({ seatIndex: this.session.mySeatIndex, senderName, message, emoji });
+    } else {
+      peerTransport.sendToHost(msg);
+      this.callbacks.onChatEmote?.({ seatIndex: this.session.mySeatIndex, senderName, message, emoji });
+    }
   }
 
   public clearActionInFlight() {
@@ -436,6 +465,84 @@ export class OnlineLudoController {
             console.warn(`[OnlineLudo] Dropping ACTION_REJECTED from unauthorized sender ${senderPeerId}`);
           }
         }
+        break;
+      }
+
+      case 'CHAT_EMOTE': {
+        if (!this.session || msg.matchId !== this.session.matchId) return;
+
+        // 1. Validate payload types and reject malformed / malicious objects
+        if (
+          typeof msg.seatIndex !== 'number' ||
+          msg.seatIndex < 0 ||
+          msg.seatIndex > 3 ||
+          typeof msg.senderName !== 'string'
+        ) {
+          console.warn('[OnlineLudo] Dropping malformed CHAT_EMOTE: invalid seat or sender');
+          return;
+        }
+
+        const safeSenderName = msg.senderName.slice(0, 32);
+        const safeMessage = typeof msg.message === 'string' ? msg.message.slice(0, 100) : undefined;
+        const safeEmoji = typeof msg.emoji === 'string' ? msg.emoji.slice(0, 16) : undefined;
+
+        if (!safeMessage && !safeEmoji) {
+          console.warn('[OnlineLudo] Dropping empty CHAT_EMOTE');
+          return;
+        }
+
+        // 2. Enforce sender authorization
+        if (this.session.isHost) {
+          const authorizedPeer = this.session.seatPeers?.[msg.seatIndex];
+          if (authorizedPeer && authorizedPeer !== senderPeerId) {
+            console.warn(
+              `[OnlineLudo] Rejected CHAT_EMOTE: sender ${senderPeerId} does not match authorized peer ${authorizedPeer} for seat ${msg.seatIndex}`
+            );
+            return;
+          }
+        } else {
+          const expectedHostPeerId = this.session.seatPeers?.[0] || `ludo-room-${this.session.roomCode.toLowerCase()}`;
+          if (senderPeerId !== expectedHostPeerId) {
+            console.warn(
+              `[OnlineLudo] Dropping CHAT_EMOTE from unauthorized non-host sender ${senderPeerId}`
+            );
+            return;
+          }
+        }
+
+        // 3. Prevent echo to sender (sender already invoked onChatEmote optimistically)
+        if (msg.seatIndex === this.session.mySeatIndex) return;
+        if (msg.id && this.processedEmoteIds.has(msg.id)) return;
+
+        if (msg.id) {
+          this.processedEmoteIds.add(msg.id);
+          if (this.processedEmoteIds.size > 150) {
+            const oldest = this.processedEmoteIds.values().next().value;
+            if (oldest) this.processedEmoteIds.delete(oldest);
+          }
+        }
+
+        const sanitizedMsg: WireMessage = {
+          type: 'CHAT_EMOTE',
+          id: msg.id,
+          matchId: this.session.matchId,
+          seatIndex: msg.seatIndex,
+          senderName: safeSenderName,
+          message: safeMessage,
+          emoji: safeEmoji,
+          timestamp: typeof msg.timestamp === 'number' ? msg.timestamp : Date.now(),
+        };
+
+        // Host relays sanitized message to all other peers
+        if (this.session.isHost) {
+          peerTransport.broadcastFromHost(sanitizedMsg);
+        }
+        this.callbacks.onChatEmote?.({
+          seatIndex: msg.seatIndex,
+          senderName: safeSenderName,
+          message: safeMessage,
+          emoji: safeEmoji,
+        });
         break;
       }
 

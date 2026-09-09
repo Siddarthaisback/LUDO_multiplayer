@@ -138,6 +138,16 @@ export type WireMessage =
       actionType: 'ROLL' | 'MOVE';
       seatIndex: number;
       reason: string;
+    }
+  | {
+      type: 'CHAT_EMOTE';
+      id?: string;
+      matchId: string;
+      seatIndex: number;
+      senderName: string;
+      message?: string;
+      emoji?: string;
+      timestamp: number;
     };
 
 export function normalizeRoomCode(raw: string): string {
