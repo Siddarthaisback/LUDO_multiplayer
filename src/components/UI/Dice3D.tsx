@@ -122,19 +122,19 @@ export const Dice3D: React.FC<Dice3DProps> = ({
   return (
     <div className="flex flex-col items-center gap-3 select-none">
       <div
-        onClick={handleRollClick}
-        className={`dice-scene relative transition-all duration-300 ${
-          canRoll && !disabled
+        onClick={showButton ? handleRollClick : undefined}
+        className={`dice-scene relative transition-transform duration-300 ${
+          showButton && canRoll && !disabled
             ? 'hover:scale-[1.02] active:scale-95 cursor-pointer'
-            : 'opacity-90 cursor-not-allowed'
+            : !canRoll
+              ? 'opacity-90'
+              : ''
         }`}
         style={{
           width: `${size}px`,
           height: `${size}px`,
           ['--dice-size' as any]: `${size}px`,
-          filter: canRoll && !disabled
-            ? `drop-shadow(0 0 5px ${colorInfo.primary}99) drop-shadow(0 4px 8px rgba(0,0,0,0.4))`
-            : 'drop-shadow(0 2px 5px rgba(0,0,0,0.3))',
+          ['--dice-roll-duration' as any]: '0.6s',
         }}
       >
         <div

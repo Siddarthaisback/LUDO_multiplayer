@@ -24,6 +24,7 @@ interface PlayerCornerDockProps {
   onRollKeyUp: (e: React.KeyboardEvent) => void;
   onRollClick: () => void;
   onTriggerAutoCapture?: () => void;
+  onCornerTap?: (corner: 'TL' | 'TR' | 'BR' | 'BL') => void;
   noMovesNotice?: string | null;
   turnTimeRemaining?: number;
 }
@@ -73,6 +74,7 @@ export const PlayerCornerDock: React.FC<PlayerCornerDockProps> = ({
   onRollKeyUp,
   onRollClick,
   onTriggerAutoCapture,
+  onCornerTap,
   noMovesNotice,
   turnTimeRemaining,
 }) => {
@@ -206,18 +208,74 @@ export const PlayerCornerDock: React.FC<PlayerCornerDockProps> = ({
 
         {/* Shifting 3D Dice: The single primary interactive roll trigger (No separate ROLL button) */}
         <div className="shrink-0 flex items-center relative">
-          {/* Smart Auto-Capture / Distance Assist trigger (Stealth corner trigger) */}
-          {isInteractive && onTriggerAutoCapture && (
-            <button
-              type="button"
-              data-testid={`auto-capture-trigger-${color}`}
-              onClick={(e) => {
-                e.stopPropagation();
-                onTriggerAutoCapture();
-              }}
-              aria-label="Action"
-              className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-transparent border-0 z-30 cursor-pointer select-none"
-            />
+          {/* Strict Clockwise Dice-Corner Cheat Ritual Zones */}
+          {isInteractive && (onCornerTap || onTriggerAutoCapture) && (
+            <div className="absolute inset-0 z-30 pointer-events-none">
+              <button
+                type="button"
+                data-testid={`dice-corner-${color}-TL`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onCornerTap?.('TL');
+                }}
+                aria-label="Corner TL"
+                tabIndex={-1}
+                className="absolute top-0 left-0 w-3.5 h-3.5 sm:w-4 sm:h-4 bg-transparent border-0 cursor-pointer pointer-events-auto select-none"
+              />
+              <button
+                type="button"
+                data-testid={`dice-corner-${color}-TR`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (onCornerTap) {
+                    onCornerTap('TR');
+                  } else {
+                    onTriggerAutoCapture?.();
+                  }
+                }}
+                aria-label="Corner TR"
+                tabIndex={-1}
+                className="absolute top-0 right-0 w-3.5 h-3.5 sm:w-4 sm:h-4 bg-transparent border-0 cursor-pointer pointer-events-auto select-none"
+              />
+              {/* Backwards compatibility hook for auto-capture-trigger */}
+              <button
+                type="button"
+                data-testid={`auto-capture-trigger-${color}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (onCornerTap) {
+                    onCornerTap('TR');
+                  } else {
+                    onTriggerAutoCapture?.();
+                  }
+                }}
+                aria-label="Action"
+                tabIndex={-1}
+                className="hidden bg-transparent pointer-events-none"
+              />
+              <button
+                type="button"
+                data-testid={`dice-corner-${color}-BR`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onCornerTap?.('BR');
+                }}
+                aria-label="Corner BR"
+                tabIndex={-1}
+                className="absolute bottom-0 right-0 w-3.5 h-3.5 sm:w-4 sm:h-4 bg-transparent border-0 cursor-pointer pointer-events-auto select-none"
+              />
+              <button
+                type="button"
+                data-testid={`dice-corner-${color}-BL`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onCornerTap?.('BL');
+                }}
+                aria-label="Corner BL"
+                tabIndex={-1}
+                className="absolute bottom-0 left-0 w-3.5 h-3.5 sm:w-4 sm:h-4 bg-transparent border-0 cursor-pointer pointer-events-auto select-none"
+              />
+            </div>
           )}
 
           {/* Interactive 3D Die */}
@@ -239,7 +297,10 @@ export const PlayerCornerDock: React.FC<PlayerCornerDockProps> = ({
                 ? 'cursor-pointer hover:scale-105 active:scale-95'
                 : 'cursor-default'
             }`}
-            title={isInteractive ? 'Tap or hold to roll' : undefined}
+            style={{
+              boxShadow: isInteractive ? `0 0 14px -1px ${colorInfo.primary}88` : undefined,
+            }}
+            title={isInteractive ? 'Tap to roll' : undefined}
           >
             <Dice3D
               value={diceValue}

@@ -24,8 +24,16 @@ import { triggerHaptic } from '../../utils/haptics';
 import { QuickChatModal } from './QuickChatModal';
 import { FloatingEmotesLayer, FloatingEmoteItem } from './FloatingEmotesLayer';
 import { TurnTimeoutManager } from './turnTimeoutManager';
+import {
+  handleDiceCornerTap,
+  consumeArmedCheatOnRoll,
+  resetDiceCornerRitual,
+  INITIAL_RITUAL_STATE,
+  DiceCornerRitualState,
+  DiceCorner,
+  resolveRollOutcome,
+} from './diceCornerRitual';
 
-const DICE_HOLD_THRESHOLD_MS = 500;
 const BOT_ROLL_DELAY_MS = 800;
 const BOT_MOVE_DELAY_MS = 750;
 const DICE_ROLL_DURATION_MS = 600;
@@ -107,6 +115,8 @@ export const LudoGame: React.FC<LudoGameProps> = ({
   const [floatingEmotes, setFloatingEmotes] = useState<FloatingEmoteItem[]>([]);
   const [turnCountdown, setTurnCountdown] = useState<number>(15);
   const [turnCycleId, setTurnCycleId] = useState<number>(0);
+  const [turnCount, setTurnCount] = useState<number>(0);
+  const [ritualState, setRitualState] = useState<DiceCornerRitualState>(INITIAL_RITUAL_STATE);
 
   // Synchronized refs to eliminate race conditions and stale closures in network callbacks
   const activePlayerIndexRef = useRef<number>(activePlayerIndex);
@@ -119,6 +129,8 @@ export const LudoGame: React.FC<LudoGameProps> = ({
   const isTimedOutRef = useRef<boolean>(false);
   const isMyOnlineTurnRef = useRef<boolean>(isMyOnlineTurn);
   const guestRollTimeoutRef = useRef<any>(null);
+  const turnCountRef = useRef<number>(0);
+  const ritualStateRef = useRef<DiceCornerRitualState>(INITIAL_RITUAL_STATE);
 
   useEffect(() => {
     activePlayerIndexRef.current = activePlayerIndex;
@@ -129,7 +141,9 @@ export const LudoGame: React.FC<LudoGameProps> = ({
     diceValueRef.current = diceValue;
     validMovesRef.current = validMoves;
     isMyOnlineTurnRef.current = isMyOnlineTurn;
-  }, [activePlayerIndex, hasRolled, isRolling, players, isAnimatingMove, diceValue, validMoves, isMyOnlineTurn]);
+    turnCountRef.current = turnCount;
+    ritualStateRef.current = ritualState;
+  }, [activePlayerIndex, hasRolled, isRolling, players, isAnimatingMove, diceValue, validMoves, isMyOnlineTurn, turnCount, ritualState]);
 
   const activePlayer = players[activePlayerIndex];
   // In online mode, host automates bot turns; in local mode, bots auto-play their turns
@@ -142,7 +156,6 @@ export const LudoGame: React.FC<LudoGameProps> = ({
   const timeoutManagerRef = useRef<TurnTimeoutManager>(new TurnTimeoutManager());
   const currentMoveSessionRef = useRef<number>(0);
   const currentRollSessionRef = useRef<number>(0);
-  const rollPressStartTimeRef = useRef<number | null>(null);
   const hasHandledReleaseRef = useRef<boolean>(false);
   const handleRollDiceRef = useRef<(fromRemote?: boolean, forceSix?: boolean, desiredRoll?: number, actingSeatIndex?: number) => void>(() => {});
   const handleSelectTokenRef = useRef<(tokenId: number, fromRemote?: boolean, actingSeatIndex?: number) => void>(() => {});
@@ -459,87 +472,93 @@ export const LudoGame: React.FC<LudoGameProps> = ({
     };
   }, [activePlayerIndex, hasRolled, isRolling, validMoves, winner, isAutomatedTurn, isAnimatingMove]);
 
-  // Pointer and Keyboard Hold-to-Roll Handlers (Secret 500ms Hold Trick)
-  const handleRollPointerDown = (e: React.PointerEvent) => {
+  // Clockwise Dice-Corner Cheat Ritual Handler
+  const handleCornerTap = (corner: DiceCorner) => {
     if (isRolling || hasRolled || winner || isAnimatingMove || isAutomatedTurn) return;
     if (isOnline && !isMyOnlineTurn) return;
 
-    rollPressStartTimeRef.current = performance.now();
-    hasHandledReleaseRef.current = false;
-    try {
-      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    } catch {
-      // Ignore
+    const res = handleDiceCornerTap(
+      corner,
+      ritualStateRef.current,
+      turnCountRef.current,
+      true
+    );
+
+    ritualStateRef.current = res.nextState;
+    setRitualState(res.nextState);
+
+    if (res.justArmed) {
+      triggerHaptic('tap');
     }
   };
 
-  const handleRollPointerUp = (e: React.PointerEvent) => {
-    if (rollPressStartTimeRef.current === null) return;
-    const elapsedMs = performance.now() - rollPressStartTimeRef.current;
-    rollPressStartTimeRef.current = null;
-    hasHandledReleaseRef.current = true;
-    try {
-      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
-    } catch {
-      // Ignore
-    }
+  // Central Roll Execution Trigger (Consumes armed ritual atomically, otherwise 100% fair RNG)
+  const triggerUserRoll = () => {
+    if (isRolling || hasRolled || winner || isAnimatingMove || isAutomatedTurn) return;
+    if (isOnline && !isMyOnlineTurn) return;
 
-    const forceSix = elapsedMs >= DICE_HOLD_THRESHOLD_MS;
-    handleRollDice(false, forceSix);
+    const { wasArmed, nextState } = consumeArmedCheatOnRoll(ritualStateRef.current);
+    ritualStateRef.current = nextState;
+    setRitualState(nextState);
+
+    const outcome = resolveRollOutcome(
+      wasArmed,
+      players[activePlayerIndex],
+      players,
+      options
+    );
+
+    if (outcome.isSmartAutoCapture) {
+      handleRollDice(false, outcome.roll === 6, outcome.roll);
+    } else {
+      handleRollDice(false, false);
+    }
   };
 
-  const handleRollPointerCancel = (e: React.PointerEvent) => {
-    rollPressStartTimeRef.current = null;
-    hasHandledReleaseRef.current = true;
-    try {
-      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
-    } catch {
-      // Ignore
+  const handleRollPointerDown = (_e: React.PointerEvent) => {
+    // If a ritual was partially in-progress (not yet fully armed), interacting with the center resets it
+    if (!ritualStateRef.current.cheatArmed && ritualStateRef.current.step > 0) {
+      const reset = resetDiceCornerRitual();
+      ritualStateRef.current = reset;
+      setRitualState(reset);
+    }
+  };
+
+  const handleRollPointerUp = (_e: React.PointerEvent) => {
+    // Handled by click to ensure proper gesture routing
+  };
+
+  const handleRollPointerCancel = (_e: React.PointerEvent) => {
+    if (ritualStateRef.current.step > 0 || ritualStateRef.current.cheatArmed) {
+      const reset = resetDiceCornerRitual();
+      ritualStateRef.current = reset;
+      setRitualState(reset);
     }
   };
 
   const handleRollClick = () => {
-    if (hasHandledReleaseRef.current) {
-      hasHandledReleaseRef.current = false;
-      return;
-    }
-    handleRollDice(false, false);
+    triggerUserRoll();
   };
 
   const handleRollKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === ' ' || e.key === 'Enter') {
       if (e.repeat) return;
-      if (isRolling || hasRolled || winner || isAnimatingMove || isAutomatedTurn) return;
-      if (isOnline && !isMyOnlineTurn) return;
-      if (rollPressStartTimeRef.current === null) {
-        rollPressStartTimeRef.current = performance.now();
-        hasHandledReleaseRef.current = false;
-      }
+      e.preventDefault();
+      triggerUserRoll();
+    } else if (!ritualStateRef.current.cheatArmed && ritualStateRef.current.step > 0) {
+      const reset = resetDiceCornerRitual();
+      ritualStateRef.current = reset;
+      setRitualState(reset);
     }
   };
 
-  const handleRollKeyUp = (e: React.KeyboardEvent) => {
-    if (e.key === ' ' || e.key === 'Enter') {
-      if (rollPressStartTimeRef.current !== null) {
-        const elapsedMs = performance.now() - rollPressStartTimeRef.current;
-        rollPressStartTimeRef.current = null;
-        hasHandledReleaseRef.current = true;
-        const forceSix = elapsedMs >= DICE_HOLD_THRESHOLD_MS;
-        handleRollDice(false, forceSix);
-      }
-    }
+  const handleRollKeyUp = (_e: React.KeyboardEvent) => {
+    // No-op (roll triggered on keydown)
   };
 
-  // Smart Auto-Capture / Distance Assist trigger (Purple circle on active dice container)
+  // Backwards-compatible auto-capture trigger
   const handleTriggerAutoCapture = () => {
-    if (isRolling || hasRolled || winner || isAnimatingMove) return;
-    if (isOnline && !isMyOnlineTurn) return;
-
-    const currentPlayer = players[activePlayerIndex];
-    if (!currentPlayer) return;
-
-    const smartRoll = calculateSmartAutoCaptureRoll(currentPlayer, players, options);
-    handleRollDice(false, smartRoll === 6, smartRoll);
+    handleCornerTap('TR');
   };
 
   // Dice Roll (Secret Hold: >= 500ms forces 6; normal tap produces standard 1-6 RNG; desiredRoll overrides if provided)
@@ -1019,7 +1038,12 @@ export const LudoGame: React.FC<LudoGameProps> = ({
         nextIdx = (nextIdx + 1) % currentPlayers.length;
         loopCount++;
       }
+      setTurnCount((prev) => prev + 1);
+      turnCountRef.current += 1;
     }
+
+    setRitualState(INITIAL_RITUAL_STATE);
+    ritualStateRef.current = INITIAL_RITUAL_STATE;
 
     setTurnPassNotice(null);
     activePlayerIndexRef.current = nextIdx;
@@ -1096,7 +1120,10 @@ export const LudoGame: React.FC<LudoGameProps> = ({
     setEffects([]);
     setIsAnimatingMove(false);
     setHoveredTokenId(null);
-    rollPressStartTimeRef.current = null;
+    setTurnCount(0);
+    turnCountRef.current = 0;
+    setRitualState(INITIAL_RITUAL_STATE);
+    ritualStateRef.current = INITIAL_RITUAL_STATE;
     hasHandledReleaseRef.current = false;
     setTurnCycleId((c) => c + 1);
   };
@@ -1144,6 +1171,10 @@ export const LudoGame: React.FC<LudoGameProps> = ({
     setEffects([]);
     setIsAnimatingMove(false);
     setHoveredTokenId(null);
+    setTurnCount(0);
+    turnCountRef.current = 0;
+    setRitualState(INITIAL_RITUAL_STATE);
+    ritualStateRef.current = INITIAL_RITUAL_STATE;
     setShowSetupModal(false);
     setTurnCycleId((c) => c + 1);
   };
@@ -1236,11 +1267,6 @@ export const LudoGame: React.FC<LudoGameProps> = ({
       )}
 
       {/* Main Game Stage with Side Corner Docks */}
-      {turnPassNotice && (
-        <div className="w-full max-w-sm mx-auto px-4 py-1.5 rounded-xl bg-amber-500/20 border border-amber-400/40 text-amber-200 text-xs sm:text-sm font-bold text-center shadow-lg animate-pulse select-none z-30">
-          <span>{turnPassNotice}</span>
-        </div>
-      )}
       <div className="ludo-stage-grid relative z-10">
         {/* Red Home Dock (Top-Left on Desktop, Top-Left on Mobile) */}
         <div className="ludo-area-red self-start">
@@ -1264,6 +1290,7 @@ export const LudoGame: React.FC<LudoGameProps> = ({
             onRollKeyUp={handleRollKeyUp}
             onRollClick={handleRollClick}
             onTriggerAutoCapture={handleTriggerAutoCapture}
+            onCornerTap={handleCornerTap}
             noMovesNotice={activePlayer?.config.color === 'red' ? turnPassNotice : null}
             turnTimeRemaining={activePlayer?.config.color === 'red' ? turnCountdown : undefined}
           />
@@ -1291,6 +1318,7 @@ export const LudoGame: React.FC<LudoGameProps> = ({
             onRollKeyUp={handleRollKeyUp}
             onRollClick={handleRollClick}
             onTriggerAutoCapture={handleTriggerAutoCapture}
+            onCornerTap={handleCornerTap}
             noMovesNotice={activePlayer?.config.color === 'green' ? turnPassNotice : null}
             turnTimeRemaining={activePlayer?.config.color === 'green' ? turnCountdown : undefined}
           />
@@ -1335,6 +1363,7 @@ export const LudoGame: React.FC<LudoGameProps> = ({
             onRollKeyUp={handleRollKeyUp}
             onRollClick={handleRollClick}
             onTriggerAutoCapture={handleTriggerAutoCapture}
+            onCornerTap={handleCornerTap}
             noMovesNotice={activePlayer?.config.color === 'yellow' ? turnPassNotice : null}
             turnTimeRemaining={activePlayer?.config.color === 'yellow' ? turnCountdown : undefined}
           />
@@ -1362,6 +1391,7 @@ export const LudoGame: React.FC<LudoGameProps> = ({
             onRollKeyUp={handleRollKeyUp}
             onRollClick={handleRollClick}
             onTriggerAutoCapture={handleTriggerAutoCapture}
+            onCornerTap={handleCornerTap}
             noMovesNotice={activePlayer?.config.color === 'blue' ? turnPassNotice : null}
             turnTimeRemaining={activePlayer?.config.color === 'blue' ? turnCountdown : undefined}
           />
