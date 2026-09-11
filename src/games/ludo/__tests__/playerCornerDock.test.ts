@@ -253,4 +253,51 @@ describe('PlayerCornerDock Mapping & Turn Shifting Invariants', () => {
     );
     expect(htmlRolled).not.toContain('data-testid="auto-capture-trigger-red"');
   });
+
+  it('keeps active player dock free of redundant Rolled and No Moves text', () => {
+    const basePlayerState: LudoPlayerState = {
+      config: {
+        id: 'p1',
+        name: 'Player 1',
+        color: 'red',
+        type: 'human',
+        avatar: '🔴',
+      },
+      tokens: [],
+      tokensHome: 0,
+      tokensCaptured: 0,
+      tokensLost: 0,
+    };
+
+    const html = renderToStaticMarkup(
+      React.createElement(PlayerCornerDock, {
+        color: 'red',
+        corner: 'top-left',
+        playerState: basePlayerState,
+        isActive: true,
+        diceValue: 2,
+        isRolling: false,
+        canRoll: false,
+        hasRolled: true,
+        isAnimatingMove: false,
+        isAutomatedTurn: false,
+        isOnline: false,
+        isMyOnlineTurn: true,
+        onRollPointerDown: () => {},
+        onRollPointerUp: () => {},
+        onRollPointerCancel: () => {},
+        onRollKeyDown: () => {},
+        onRollKeyUp: () => {},
+        onRollClick: () => {},
+      })
+    );
+
+    // Assert that the visible subtext does not contain redundant roll / no moves info
+    expect(html).not.toContain('Rolled:');
+    expect(html).not.toContain('No Moves');
+    expect(html).not.toContain('(Choosing...)');
+    // Dock subtext cleanly renders standard turn indicator
+    expect(html).toContain('Turn');
+  });
 });
+

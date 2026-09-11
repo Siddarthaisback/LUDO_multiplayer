@@ -102,6 +102,7 @@ export const LudoGame: React.FC<LudoGameProps> = ({
   const isOnline = Boolean(multiplayerSession);
   const isMyOnlineTurn = isOnline ? multiplayerSession!.mySeatIndex === activePlayerIndex : true;
   const [networkDisconnectError, setNetworkDisconnectError] = useState<string | null>(null);
+  const [actionRejectedNotice, setActionRejectedNotice] = useState<string | null>(null);
 
   const [boardStyle, setBoardStyle] = useState<'luxury' | 'classic'>('classic');
   const [isShaking, setIsShaking] = useState(false);
@@ -110,7 +111,6 @@ export const LudoGame: React.FC<LudoGameProps> = ({
   const [effects, setEffects] = useState<BoardEffectItem[]>([]);
   const [hoveredTokenId, setHoveredTokenId] = useState<number | null>(null);
   const [isAnimatingMove, setIsAnimatingMove] = useState(false);
-  const [turnPassNotice, setTurnPassNotice] = useState<string | null>(null);
   const [showQuickChat, setShowQuickChat] = useState<boolean>(false);
   const [floatingEmotes, setFloatingEmotes] = useState<FloatingEmoteItem[]>([]);
   const [turnCountdown, setTurnCountdown] = useState<number | undefined>(undefined);
@@ -210,10 +210,7 @@ export const LudoGame: React.FC<LudoGameProps> = ({
       const legalMoves = LudoEngine.getValidMoves(myPlayer, snapshot.diceValue, snapshot.players, options);
       setValidMoves(legalMoves);
       validMovesRef.current = legalMoves;
-      if (legalMoves.length === 0) {
-        setTurnPassNotice(`Rolled ${snapshot.diceValue} — No Moves Available`);
-      } else {
-        setTurnPassNotice(null);
+      if (legalMoves.length > 0) {
         if (!timeoutManagerRef.current.getIsTimedOut()) {
           timeoutManagerRef.current.startTurn(15);
         }
@@ -221,19 +218,6 @@ export const LudoGame: React.FC<LudoGameProps> = ({
     } else {
       setValidMoves([]);
       validMovesRef.current = [];
-      if (snapshot.hasRolled && !isPostMove) {
-        const activeP = snapshot.players[snapshot.activePlayerIndex];
-        if (activeP) {
-          const moves = LudoEngine.getValidMoves(activeP, snapshot.diceValue, snapshot.players, options);
-          if (moves.length === 0) {
-            setTurnPassNotice(`Rolled ${snapshot.diceValue} — No Moves Available`);
-          } else {
-            setTurnPassNotice(null);
-          }
-        }
-      } else {
-        setTurnPassNotice(null);
-      }
     }
   };
 
@@ -263,8 +247,8 @@ export const LudoGame: React.FC<LudoGameProps> = ({
         isRollingRef.current = false;
         setIsAnimatingMove(false);
         isAnimatingMoveRef.current = false;
-        setTurnPassNotice(`Action rejected: ${reason}`);
-        setTimeout(() => setTurnPassNotice(null), 2500);
+        setActionRejectedNotice(`Action rejected: ${reason}`);
+        setTimeout(() => setActionRejectedNotice(null), 2500);
 
         if (!multiplayerSession.isHost && activePlayerIndexRef.current === multiplayerSession.mySeatIndex && !winner) {
           if (actionType === 'MOVE' && hasRolledRef.current) {
@@ -719,17 +703,14 @@ export const LudoGame: React.FC<LudoGameProps> = ({
       }
 
       if (legalMoves.length === 0) {
-        setTurnPassNotice(`Rolled ${roll} — No Moves Available`);
         const nextDelay = PASS_TURN_DELAY_MS;
         if (turnTimerRef.current) clearTimeout(turnTimerRef.current);
         turnTimerRef.current = setTimeout(() => {
           if (rollSession === currentRollSessionRef.current) {
-            setTurnPassNotice(null);
             advanceTurn(false);
           }
         }, nextDelay);
       } else {
-        setTurnPassNotice(null);
         // Rearm online turn timeout only if turn was not already timed out, ensuring timed-out players immediately auto-select
         if (isOnline && !isAutomatedTurn && !timeoutManagerRef.current.getIsTimedOut()) {
           timeoutManagerRef.current.startTurn(15);
@@ -822,7 +803,6 @@ export const LudoGame: React.FC<LudoGameProps> = ({
     // Prevents React rerender (from setValidMoves / setIsAnimatingMove) from overwriting
     // the first hop or yard-exit transform with the token's old position
     validMovesRef.current = [];
-    setTurnPassNotice(null);
     flushSync(() => {
       setIsAnimatingMove(true);
       setValidMoves([]);
@@ -1000,7 +980,6 @@ export const LudoGame: React.FC<LudoGameProps> = ({
       const sessionId = ++currentMoveSessionRef.current;
       isAnimatingMoveRef.current = true;
       validMovesRef.current = [];
-      setTurnPassNotice(null);
       flushSync(() => {
         setIsAnimatingMove(true);
         setValidMoves([]);
@@ -1100,7 +1079,6 @@ export const LudoGame: React.FC<LudoGameProps> = ({
     setRitualState(INITIAL_RITUAL_STATE);
     ritualStateRef.current = INITIAL_RITUAL_STATE;
 
-    setTurnPassNotice(null);
     activePlayerIndexRef.current = nextIdx;
     hasRolledRef.current = false;
     isRollingRef.current = false;
@@ -1349,7 +1327,6 @@ export const LudoGame: React.FC<LudoGameProps> = ({
             onRollClick={handleRollClick}
             onTriggerAutoCapture={handleTriggerAutoCapture}
             onCornerTap={handleCornerTap}
-            noMovesNotice={activePlayer?.config.color === 'red' ? turnPassNotice : null}
             turnTimeRemaining={activePlayer?.config.color === 'red' ? turnCountdown : undefined}
           />
         </div>
@@ -1377,7 +1354,6 @@ export const LudoGame: React.FC<LudoGameProps> = ({
             onRollClick={handleRollClick}
             onTriggerAutoCapture={handleTriggerAutoCapture}
             onCornerTap={handleCornerTap}
-            noMovesNotice={activePlayer?.config.color === 'green' ? turnPassNotice : null}
             turnTimeRemaining={activePlayer?.config.color === 'green' ? turnCountdown : undefined}
           />
         </div>
@@ -1422,7 +1398,6 @@ export const LudoGame: React.FC<LudoGameProps> = ({
             onRollClick={handleRollClick}
             onTriggerAutoCapture={handleTriggerAutoCapture}
             onCornerTap={handleCornerTap}
-            noMovesNotice={activePlayer?.config.color === 'yellow' ? turnPassNotice : null}
             turnTimeRemaining={activePlayer?.config.color === 'yellow' ? turnCountdown : undefined}
           />
         </div>
@@ -1450,7 +1425,6 @@ export const LudoGame: React.FC<LudoGameProps> = ({
             onRollClick={handleRollClick}
             onTriggerAutoCapture={handleTriggerAutoCapture}
             onCornerTap={handleCornerTap}
-            noMovesNotice={activePlayer?.config.color === 'blue' ? turnPassNotice : null}
             turnTimeRemaining={activePlayer?.config.color === 'blue' ? turnCountdown : undefined}
           />
         </div>
@@ -1493,6 +1467,18 @@ export const LudoGame: React.FC<LudoGameProps> = ({
           onRematch={handleRestart}
           onHome={handleHome}
         />
+      )}
+
+      {/* Action Rejection Toast for Online Mode */}
+      {actionRejectedNotice && (
+        <div
+          data-testid="action-rejected-toast"
+          role="alert"
+          className="fixed top-16 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-xl bg-red-950/95 border border-red-500/70 text-red-200 text-xs font-bold shadow-2xl backdrop-blur-md flex items-center gap-2 animate-in fade-in slide-in-from-top-2 select-none pointer-events-none"
+        >
+          <span>⚠️</span>
+          <span>{actionRejectedNotice}</span>
+        </div>
       )}
 
       {/* Network Disconnect Overlay for Online Mode */}

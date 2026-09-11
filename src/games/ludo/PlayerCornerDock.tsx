@@ -25,7 +25,6 @@ interface PlayerCornerDockProps {
   onRollClick: () => void;
   onTriggerAutoCapture?: () => void;
   onCornerTap?: (corner: 'TL' | 'TR' | 'BR' | 'BL') => void;
-  noMovesNotice?: string | null;
   turnTimeRemaining?: number;
 }
 
@@ -75,7 +74,6 @@ export const PlayerCornerDock: React.FC<PlayerCornerDockProps> = ({
   onRollClick,
   onTriggerAutoCapture,
   onCornerTap,
-  noMovesNotice,
   turnTimeRemaining,
 }) => {
   const colorInfo = COLOR_MAP[color];
@@ -174,18 +172,6 @@ export const PlayerCornerDock: React.FC<PlayerCornerDockProps> = ({
               <div className="text-[11px] sm:text-xs font-bold text-emerald-300 flex items-center gap-1.5 mt-0.5">
                 <span className="inline-block w-2 h-2 rounded-full bg-emerald-400 animate-bounce shrink-0" />
                 <span className="truncate">Moving...</span>
-              </div>
-            ) : noMovesNotice ? (
-              <div className="text-[11px] sm:text-xs font-bold text-amber-300 flex items-center gap-1 mt-0.5">
-                <span className="truncate">{noMovesNotice}</span>
-              </div>
-            ) : hasRolled ? (
-              <div className="text-[11px] sm:text-xs font-bold text-amber-300 flex items-center gap-1 mt-0.5">
-                <span className="text-[#cdb99d]">Rolled:</span>
-                <span className="text-[#f6ead7] font-black">{diceValue}</span>
-                {isOnline && !isMyOnlineTurn && (
-                  <span className="text-amber-400 text-[10px] ml-1 font-medium">(Choosing...)</span>
-                )}
               </div>
             ) : isOnline && !isMyOnlineTurn ? (
               <div className="text-[11px] sm:text-xs font-bold text-amber-400 flex items-center gap-1.5 mt-0.5">
