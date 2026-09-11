@@ -11,7 +11,8 @@ import {
   Palette, 
   Settings, 
   Users, 
-  X
+  X,
+  MessageCircle
 } from 'lucide-react';
 import { AnimationSpeed, BoardStyleMode } from '../../types/game';
 import { soundEffects } from '../../engine/soundEffects';
@@ -23,6 +24,7 @@ interface SettingsBarProps {
   onHome: () => void;
   onOpenRules: () => void;
   onOpenSetup?: () => void;
+  onOpenBanter?: () => void;
   isAutoPlay?: boolean;
   onToggleAutoPlay?: () => void;
   boardStyle?: BoardStyleMode;
@@ -37,6 +39,7 @@ export const SettingsBar: React.FC<SettingsBarProps> = ({
   onHome,
   onOpenRules,
   onOpenSetup,
+  onOpenBanter,
   isAutoPlay,
   onToggleAutoPlay,
   boardStyle = 'luxury',
@@ -112,7 +115,21 @@ export const SettingsBar: React.FC<SettingsBarProps> = ({
         </button>
       )}
 
-      {/* 4. High-Contrast Luminous Amber/Gold Settings Button */}
+      {/* 4. Quick Banter / Emoji Trigger */}
+      {onOpenBanter && (
+        <button
+          type="button"
+          onClick={onOpenBanter}
+          title="Open Banter & Emojis"
+          aria-label="Open Banter & Emojis"
+          className="px-2 sm:px-2.5 py-1.5 rounded-xl bg-[#3b2010] hover:bg-[#4d2915] text-[#f6ead7] transition-all flex items-center gap-1.5 text-xs font-bold border border-amber-400/70 hover:border-amber-300 cursor-pointer active:scale-95 shadow-sm shadow-[0_0_10px_rgba(245,158,11,0.15)] min-h-[34px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400"
+        >
+          <MessageCircle className="w-4 h-4 text-amber-400 shrink-0" />
+          <span className="hidden md:inline text-[11px] font-semibold">Banter</span>
+        </button>
+      )}
+
+      {/* 5. High-Contrast Luminous Amber/Gold Settings Button */}
       <button
         type="button"
         onClick={() => setShowSettingsModal(true)}

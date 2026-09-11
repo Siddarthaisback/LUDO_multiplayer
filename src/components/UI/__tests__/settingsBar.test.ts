@@ -55,4 +55,26 @@ describe('SettingsBar Accessibility & Controls Visibility', () => {
     expect(withAuto).toContain('aria-label="Disable Auto-Play"');
     expect(withAuto).toContain('aria-pressed="true"');
   });
+
+  it('conditionally renders Banter button when onOpenBanter handler is provided', () => {
+    const withoutBanter = renderToStaticMarkup(
+      React.createElement(SettingsBar, {
+        onRestart: vi.fn(),
+        onHome: vi.fn(),
+        onOpenRules: vi.fn(),
+      })
+    );
+    expect(withoutBanter).not.toContain('Banter');
+
+    const withBanter = renderToStaticMarkup(
+      React.createElement(SettingsBar, {
+        onRestart: vi.fn(),
+        onHome: vi.fn(),
+        onOpenRules: vi.fn(),
+        onOpenBanter: vi.fn(),
+      })
+    );
+    expect(withBanter).toContain('Banter');
+    expect(withBanter).toContain('aria-label="Open Banter &amp; Emojis"');
+  });
 });

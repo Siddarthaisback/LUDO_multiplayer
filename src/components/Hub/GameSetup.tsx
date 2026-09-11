@@ -108,9 +108,9 @@ export const GameSetup: React.FC<GameSetupProps> = ({
     }
     return [
       { id: 'p1', name: 'Player 1 (You)', color: 'red', type: 'human', avatar: '🦁' },
-      { id: 'p2', name: 'Bot Ramesh', color: 'blue', type: 'bot', difficulty: 'medium', avatar: '🐼' },
+      { id: 'p2', name: 'Bot Ramesh', color: 'green', type: 'bot', difficulty: 'medium', avatar: '🐼' },
       { id: 'p3', name: 'Bot Sita', color: 'yellow', type: 'bot', difficulty: 'medium', avatar: '🤖' },
-      { id: 'p4', name: 'Bot Bikram', color: 'green', type: 'bot', difficulty: 'master', avatar: '🐲' },
+      { id: 'p4', name: 'Bot Bikram', color: 'blue', type: 'bot', difficulty: 'master', avatar: '🐲' },
       { id: 'p5', name: 'Bot Maya', color: 'red', type: 'bot', difficulty: 'medium', avatar: '🦊' },
       { id: 'p6', name: 'Bot Aarav', color: 'green', type: 'bot', difficulty: 'easy', avatar: '🐯' },
     ];

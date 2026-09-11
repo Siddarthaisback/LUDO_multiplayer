@@ -34,11 +34,11 @@ import {
   resolveRollOutcome,
 } from './diceCornerRitual';
 
-const BOT_ROLL_DELAY_MS = 800;
-const BOT_MOVE_DELAY_MS = 750;
+const BOT_ROLL_DELAY_MS = 650;
+const BOT_MOVE_DELAY_MS = 550;
 const DICE_ROLL_DURATION_MS = 600;
 const TOKEN_HOP_DURATION_MS = 200;
-const PASS_TURN_DELAY_MS = 1500;
+const PASS_TURN_DELAY_MS = 1000;
 const AFTER_MOVE_DELAY_MS = 600;
 
 interface LudoGameProps {
@@ -113,7 +113,7 @@ export const LudoGame: React.FC<LudoGameProps> = ({
   const [turnPassNotice, setTurnPassNotice] = useState<string | null>(null);
   const [showQuickChat, setShowQuickChat] = useState<boolean>(false);
   const [floatingEmotes, setFloatingEmotes] = useState<FloatingEmoteItem[]>([]);
-  const [turnCountdown, setTurnCountdown] = useState<number>(15);
+  const [turnCountdown, setTurnCountdown] = useState<number | undefined>(undefined);
   const [turnCycleId, setTurnCycleId] = useState<number>(0);
   const [turnCount, setTurnCount] = useState<number>(0);
   const [ritualState, setRitualState] = useState<DiceCornerRitualState>(INITIAL_RITUAL_STATE);
@@ -199,8 +199,13 @@ export const LudoGame: React.FC<LudoGameProps> = ({
     }
     if (snapshot.winner) setWinner(snapshot.winner);
     if (snapshot.rankings) setRankings(snapshot.rankings);
+    if (snapshot.isRolling && isOnline) {
+      timeoutManagerRef.current.stop();
+    }
 
-    if (snapshot.hasRolled && snapshot.activePlayerIndex === multiplayerSession?.mySeatIndex) {
+    const isPostMove = snapshot.lastAction?.type === 'MOVE' || isAnimatingMoveRef.current;
+
+    if (snapshot.hasRolled && !isPostMove && snapshot.activePlayerIndex === multiplayerSession?.mySeatIndex) {
       const myPlayer = snapshot.players[snapshot.activePlayerIndex];
       const legalMoves = LudoEngine.getValidMoves(myPlayer, snapshot.diceValue, snapshot.players, options);
       setValidMoves(legalMoves);
@@ -209,11 +214,14 @@ export const LudoGame: React.FC<LudoGameProps> = ({
         setTurnPassNotice(`Rolled ${snapshot.diceValue} — No Moves Available`);
       } else {
         setTurnPassNotice(null);
+        if (!timeoutManagerRef.current.getIsTimedOut()) {
+          timeoutManagerRef.current.startTurn(15);
+        }
       }
     } else {
       setValidMoves([]);
       validMovesRef.current = [];
-      if (snapshot.hasRolled) {
+      if (snapshot.hasRolled && !isPostMove) {
         const activeP = snapshot.players[snapshot.activePlayerIndex];
         if (activeP) {
           const moves = LudoEngine.getValidMoves(activeP, snapshot.diceValue, snapshot.players, options);
@@ -249,7 +257,7 @@ export const LudoGame: React.FC<LudoGameProps> = ({
           animateRemoteMoveRef.current(data.seatIndex, data.tokenId, data.fromStep, data.toStep);
         }
       },
-      onRemoteActionRejected: (_actionType: 'ROLL' | 'MOVE', reason: string) => {
+      onRemoteActionRejected: (actionType: 'ROLL' | 'MOVE', reason: string) => {
         if (guestRollTimeoutRef.current) clearTimeout(guestRollTimeoutRef.current);
         setIsRolling(false);
         isRollingRef.current = false;
@@ -257,9 +265,30 @@ export const LudoGame: React.FC<LudoGameProps> = ({
         isAnimatingMoveRef.current = false;
         setTurnPassNotice(`Action rejected: ${reason}`);
         setTimeout(() => setTurnPassNotice(null), 2500);
+
+        if (!multiplayerSession.isHost && activePlayerIndexRef.current === multiplayerSession.mySeatIndex && !winner) {
+          if (actionType === 'MOVE' && hasRolledRef.current) {
+            const myPlayer = playersRef.current[multiplayerSession.mySeatIndex];
+            if (myPlayer) {
+              const restoredMoves = LudoEngine.getValidMoves(myPlayer, diceValueRef.current, playersRef.current, options);
+              validMovesRef.current = restoredMoves;
+              setValidMoves(restoredMoves);
+            }
+          }
+
+          if (timeoutManagerRef.current.getIsTimedOut()) {
+            if (!hasRolledRef.current) {
+              handleRollDiceRef.current(false, false);
+            }
+          } else {
+            timeoutManagerRef.current.startTurn(Math.max(3, timeoutManagerRef.current.getRemainingSeconds()));
+          }
+        }
       },
       onStateSnapshot: (snapshot) => {
-        if (guestRollTimeoutRef.current) clearTimeout(guestRollTimeoutRef.current);
+        if (snapshot.hasRolled || !snapshot.isRolling) {
+          if (guestRollTimeoutRef.current) clearTimeout(guestRollTimeoutRef.current);
+        }
         if (isAnimatingMoveRef.current && !multiplayerSession.isHost) {
           pendingSnapshotRef.current = snapshot;
           return;
@@ -348,23 +377,26 @@ export const LudoGame: React.FC<LudoGameProps> = ({
     }, durationMs);
   };
 
-  // 15-Second Turn Countdown Timer & Auto-Play on timeout
+  // 15-Second Turn Countdown Timer & Auto-Play on timeout (Online Multiplayer Only)
   useEffect(() => {
-    if (winner || isAutomatedTurn) {
+    // Turn countdown is strictly reserved for online matches to keep remote lobbies alive.
+    // Offline local games (Pass & Play and Solo vs Bots) must NEVER force-roll or auto-play human friends!
+    if (!isOnline || winner || isAutomatedTurn) {
       timeoutManagerRef.current.stop();
+      setTurnCountdown(undefined);
       return;
     }
 
     timeoutManagerRef.current.setHandlers({
       onTick: (seconds) => {
         setTurnCountdown(seconds);
-        if (seconds <= 4 && seconds > 0 && (!isOnline || isMyOnlineTurnRef.current)) {
+        if (seconds <= 4 && seconds > 0 && isMyOnlineTurnRef.current) {
           soundEffects.playUrgentTick();
           triggerHaptic('urgent');
         }
       },
       onTimeout: () => {
-        if (!isOnline || isMyOnlineTurnRef.current) {
+        if (isMyOnlineTurnRef.current) {
           if (!hasRolledRef.current) {
             if (!isRollingRef.current) {
               handleRollDiceRef.current();
@@ -393,11 +425,11 @@ export const LudoGame: React.FC<LudoGameProps> = ({
     };
   }, [turnCycleId, activePlayerIndex, winner, isAutomatedTurn, isOnline]);
 
-  // If a turn timed out before or during rolling, auto-select a move as soon as rolling finishes
+  // If an online turn timed out before or during rolling, auto-select a move as soon as rolling finishes
   useEffect(() => {
-    if (!timeoutManagerRef.current.getIsTimedOut()) return;
+    if (!isOnline || !timeoutManagerRef.current.getIsTimedOut()) return;
     if (winner || isRolling || isAnimatingMove) return;
-    if (isOnline && !isMyOnlineTurn) return;
+    if (!isMyOnlineTurn) return;
 
     if (hasRolled && validMoves.length > 0) {
       const curPlayer = players[activePlayerIndex];
@@ -578,6 +610,11 @@ export const LudoGame: React.FC<LudoGameProps> = ({
     }
     if (!canExecuteLocally(targetPlayerIndex, fromRemote)) return;
 
+    // Stop online turn timer during rolling animation for both host and guest
+    if (isOnline) {
+      timeoutManagerRef.current.stop();
+    }
+
     if (isOnline && !multiplayerSession?.isHost) {
       soundEffects.playDiceRoll();
       setIsRolling(true);
@@ -586,13 +623,17 @@ export const LudoGame: React.FC<LudoGameProps> = ({
 
       if (guestRollTimeoutRef.current) clearTimeout(guestRollTimeoutRef.current);
       guestRollTimeoutRef.current = setTimeout(() => {
-        setIsRolling((current) => {
-          if (current && !hasRolledRef.current) {
-            isRollingRef.current = false;
-            return false;
+        if (!hasRolledRef.current && isRollingRef.current) {
+          isRollingRef.current = false;
+          setIsRolling(false);
+          if (activePlayerIndexRef.current === multiplayerSession?.mySeatIndex && !winner) {
+            if (timeoutManagerRef.current.getIsTimedOut()) {
+              handleRollDiceRef.current(false, false);
+            } else {
+              timeoutManagerRef.current.startTurn(Math.max(3, timeoutManagerRef.current.getRemainingSeconds()));
+            }
           }
-          return current;
-        });
+        }
       }, 4000);
       return;
     }
@@ -689,6 +730,10 @@ export const LudoGame: React.FC<LudoGameProps> = ({
         }, nextDelay);
       } else {
         setTurnPassNotice(null);
+        // Rearm online turn timeout only if turn was not already timed out, ensuring timed-out players immediately auto-select
+        if (isOnline && !isAutomatedTurn && !timeoutManagerRef.current.getIsTimedOut()) {
+          timeoutManagerRef.current.startTurn(15);
+        }
       }
     }, rollDuration);
   };
@@ -710,6 +755,7 @@ export const LudoGame: React.FC<LudoGameProps> = ({
       isAnimatingMoveRef.current = true;
       setValidMoves([]);
       validMovesRef.current = [];
+      timeoutManagerRef.current.stop();
       onlineLudoController.requestMove(tokenId, targetPlayerIndex);
       return;
     }
@@ -734,6 +780,10 @@ export const LudoGame: React.FC<LudoGameProps> = ({
       }
       return;
     }
+
+    timeoutManagerRef.current.stop();
+    setValidMoves([]);
+    validMovesRef.current = [];
 
     const token = currentPlayer.tokens.find((t) => t.id === tokenId);
     if (!token) {
@@ -907,6 +957,11 @@ export const LudoGame: React.FC<LudoGameProps> = ({
         consecutiveSixes,
         winner: finalWinner,
         rankings: finalRankings,
+        lastAction: {
+          type: 'MOVE',
+          playerIndex: targetPlayerIndex,
+          details: `Moved token ${tokenId}`,
+        },
       });
     }
 
@@ -1049,6 +1104,8 @@ export const LudoGame: React.FC<LudoGameProps> = ({
     activePlayerIndexRef.current = nextIdx;
     hasRolledRef.current = false;
     isRollingRef.current = false;
+    setDiceValue(1);
+    diceValueRef.current = 1;
     playersRef.current = currentPlayers;
     validMovesRef.current = [];
 
@@ -1238,6 +1295,7 @@ export const LudoGame: React.FC<LudoGameProps> = ({
         onHome={handleHome}
         onOpenRules={() => setShowRules(true)}
         onOpenSetup={handleOpenSetup}
+        onOpenBanter={() => setShowQuickChat(true)}
         gameTitle="Royal Ludo (🎲 3D Physics)"
         boardStyle={boardStyle}
         onToggleBoardStyle={() => setBoardStyle(boardStyle === 'luxury' ? 'classic' : 'luxury')}
@@ -1398,11 +1456,13 @@ export const LudoGame: React.FC<LudoGameProps> = ({
         </div>
       </div>
 
-      {/* Quick Banter / Emoji Floating Trigger Button */}
-      <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-40">
+      {/* Quick Banter / Emoji Floating Trigger Button (Large screens only; header provides mobile access) */}
+      <div className="hidden xl:flex fixed bottom-6 right-6 z-40">
         <button
+          type="button"
           onClick={() => setShowQuickChat(true)}
-          className="px-4 py-2.5 rounded-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs sm:text-sm shadow-2xl border-2 border-amber-300 flex items-center gap-2 transform transition-all hover:scale-105 active:scale-95 select-none animate-bounce"
+          title="Open Banter & Emojis"
+          className="px-4 py-2.5 rounded-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs sm:text-sm shadow-2xl border-2 border-amber-300 flex items-center gap-2 transform transition-all hover:scale-105 active:scale-95 select-none"
         >
           <MessageCircle className="w-4 h-4" />
           <span>Banter & Emojis</span>
