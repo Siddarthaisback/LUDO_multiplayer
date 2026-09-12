@@ -23,11 +23,3 @@ dist-ssr
 *.sln
 *.sw?
 
-# Large archives and binaries
-*.zip
-*.apk
-ludo assets.zip
-
-# Codex project memory
-instincts.json
-instincts.md
